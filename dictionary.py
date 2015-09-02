@@ -158,11 +158,35 @@ class Dictionary(object):
         for key in seq:
             d[key] = value
         return d
+     
+    def pop(self, key, default=None):
+        index = self.__get_index(key)
+        item = self.entries[index]
+        if item:
+            _,_, value = item
+            self.__delitem__(key, index=index)
+            return value
+        elif default:
+            return default
+        else:
+            raise KeyError(key)
+
+    def popitem(self):
+        try:
+            key, value = next(self.iteritems())
+            index = self.__get_index(key)
+            entry = self.entries[index]
+            if entry is not None:
+                self.__delitem__(key, index=index)
+                return key,value
+        except StopIteration:
+            raise KeyError('popitem(): dictionary is empty')   
     
     def setdefault(self, key, default=None):
         index = self.__get_index(key)
-        if self.entries[index] is not None:
-            _, _, value = self.entries[index]
+        entry = self.entries[index]
+        if entry is not None:
+            _, _, value = entry
             return value
         else:
             self.__setitem__(key, default, index=index)
