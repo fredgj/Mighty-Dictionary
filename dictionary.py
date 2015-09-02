@@ -15,6 +15,14 @@ def calculate_index(key, n):
     return dec(bits(hash(key))[-n:])
 
 
+# Dummy class for leaving a dummy value until next
+# time the dictionary gets resized in case a key already has collided with
+# the index where the deleted object was stored
+class Dummy(object):
+    def __repr__(self):
+        return 'Dummy'
+
+
 class __sequence_iterator(object):
     def __init__(self, sequence):
         self.sequence = sequence
@@ -55,10 +63,11 @@ class Dictionary(object):
         self.update(mapping, **kwargs)
 
     def __len__(self):
+        return len([entry for entry in self.entries if entry and type(entry) is not Dummy])
+    
+    # also count dummy entries
+    def __true_len(self):
         return len([entry for entry in self.entries if entry])
-
-    def __reversed__(self):
-        return (entry[1] for entry in self.entries[::-1] if entry)
 
     def __contains__(self, key):
         return self.__get_index(key) is not None
@@ -70,7 +79,7 @@ class Dictionary(object):
             index = self.__get_index(key)
             self.entries[index] = (hash(key), key, value)
         
-        size = len(self)
+        size = self.__true_len()
         if size >= (len(self.entries) * (2.0/3.0)):
             self.__resize(size)
     
@@ -82,8 +91,16 @@ class Dictionary(object):
         else:
             raise KeyError(key)
     
-    def __delitem__(self, key):
-        pass
+    def __delitem__(self, key, index=None):
+        if index is not None:
+            self.entries[index] = Dummy()
+            return
+        
+        index = self.__get_index(key)
+        if index is not None:
+            self.entries[index] = Dummy()
+        else:
+            raise KeyError(key) 
 
     def __iter__(self):
         entries = self.__get_entries()
@@ -172,8 +189,8 @@ class Dictionary(object):
             self[key] = value
     
     def __get_entries(self):
-        return (entry for entry in self.entries if entry)
-
+        return (entry for entry in self.entries if entry and type(entry) is not Dummy)
+    
     def keys(self):
         entries = self.__get_entries()
         return [key for _, key, _ in entries]
@@ -211,10 +228,10 @@ class Dictionary(object):
         return dictionary_items(self)
     
     def __get_index(self, key):
-        index = calculate_index(key, self.__n) 
-        if self.entries[index]:
-            #print 'im here'
-            entry_hash, entry_key, value = self.entries[index]
+        index = calculate_index(key, self.__n)
+        entry = self.entries[index]
+        if entry and type(entry) is not Dummy:
+            entry_hash, entry_key, value = entry
             if entry_hash == hash(key) and entry_key == key:
                 return index
         return self.__probe(index, key)
@@ -239,79 +256,28 @@ class Dictionary(object):
             if self.__valid_index(new_index, key):
                 return new_index
     
-    def __valid_index(self, index, key): 
-        if self.entries[index]:
-            entry_hash, entry_key, _ = self.entries[index]
+    def __valid_index(self, index, key):
+        entry = self.entries[index]
+        if entry and type(entry) is not Dummy:
+            entry_hash, entry_key, _ = entry
             if entry_hash == hash(key) and entry_key == key:
                 return True
         elif not self.entries[index]:
             return True
 
     def __resize(self, size):
-        if size < 50000:
-                self.__size *= 4
-                self.__n += 2
-        else:
-                self.__size *= 2
-                self.__n += 1
+        # Checks if dictionary really need to resize
+        # or just have to get rid of dummy entries
+        if len(self) >= (len(self.entries) * (2.0/3.0)):
+            if size < 50000:
+                    self.__size *= 4
+                    self.__n += 2
+            else:
+                    self.__size *= 2
+                    self.__n += 1
         entries = self.__get_entries()
         self.entries = [None] * self.__size
         for _, key, value in entries:
             self[key] = value
-
-
-
-
-d = Dictionary()
-d['a'] = 3
-assert len(d) == 1
-d['bab'] = 7
-assert len(d) == 2
-d['fredrik'] = 9
-assert len(d) == 3
-d['dcsd'] = 10
-assert len(d) == 4
-d['dcsdcas'] = 11
-assert len(d) == 5
-d['sdsdcsd'] = 12
-assert len(d) == 6
-d['fvfvrfv'] = 13
-assert len(d) == 7
-#l = [entries for entries in d.entries]
-d['bab'] = 8
-#print('bab = ', d['bab'])
-assert d['bab'] == 8
-print(d)
-assert len(d) == 7
-##print('d[\'bab\'] = {}'.format(d['bab']))
-#assert d['bab'] == 8
-
-
-#d = Dictionary(a=1, b=2, c=3, d=4, e=5)
-#dd = Dictionary(c=3, d=4, e=5, g=6)
-#del d['a']
-#del d['b']
-#del d['c']
-#del d['d']
-#del d['e']
-#i = d.viewitems()
-#ii = dd.viewitems()
-
-e = dict(a=1, b=2, c=3, d=4, e=5)
-#ee = dict(c=3, d=4, e=5, g=6)
-
-#r = e.viewitems()
-#rr = ee.viewitems()
-
-#print(d == e)
-#print(d)
-
-# +------+---------------------------+
-# |index | entry <hash, key, value>  |
-# +------+---------------------------+
-# |      |                           |
-# +------+---------------------------+
-# |      |                           |
-# +------+---------------------------+
 
 
