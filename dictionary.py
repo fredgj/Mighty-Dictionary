@@ -18,7 +18,7 @@ def calculate_index(key, n):
 # Dummy class for leaving a dummy value until next
 # time the dictionary gets resized in case a key already has collided with
 # the index where the deleted object was stored
-class Dummy(object):
+class _Dummy(object):
     def __repr__(self):
         return 'Dummy'
 
@@ -150,9 +150,9 @@ class Dictionary(object):
         self.update(mapping, **kwargs)
 
     def __len__(self):
-        return len([entry for entry in self.entries if entry and type(entry) is not Dummy])
+        return len([entry for entry in self.entries if entry and type(entry) is not _Dummy])
     
-    # also count dummy entries
+    # also count Dummy entries
     def __true_len(self):
         return len([entry for entry in self.entries if entry])
 
@@ -180,12 +180,12 @@ class Dictionary(object):
     
     def __delitem__(self, key, index=None):
         if index is not None:
-            self.entries[index] = Dummy()
+            self.entries[index] = _Dummy()
             return
         
         index = self.__get_index(key)
         if index is not None:
-            self.entries[index] = Dummy()
+            self.entries[index] = _Dummy()
         else:
             raise KeyError(key) 
     
@@ -321,7 +321,7 @@ class Dictionary(object):
             self[key] = value
     
     def __get_entries(self):
-        return (entry for entry in self.entries if entry and type(entry) is not Dummy)
+        return (entry for entry in self.entries if entry and type(entry) is not _Dummy)
     
     def keys(self):
         entries = self.__get_entries()
@@ -362,7 +362,7 @@ class Dictionary(object):
     def __get_index(self, key):
         index = calculate_index(key, self.__n)
         entry = self.entries[index]
-        if entry and type(entry) is not Dummy:
+        if entry and type(entry) is not _Dummy:
             entry_hash, entry_key, value = entry
             if entry_hash == hash(key) and entry_key == key:
                 return index
@@ -390,7 +390,7 @@ class Dictionary(object):
     
     def __valid_index(self, index, key):
         entry = self.entries[index]
-        if entry and type(entry) is not Dummy:
+        if entry and type(entry) is not _Dummy:
             entry_hash, entry_key, _ = entry
             if entry_hash == hash(key) and entry_key == key:
                 return True
@@ -401,7 +401,7 @@ class Dictionary(object):
         global _counter, _local_vars
         _counter = 0
         # Checks if dictionary really need to resize
-        # or just have to get rid of dummy entries
+        # or just have to get rid of Dummy entries
         if len(self) >= (len(self.entries) * (2.0/3.0)):
             _local_vars = 3
             if size < 50000:
