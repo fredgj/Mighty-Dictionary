@@ -46,11 +46,95 @@ class __sequence_iterator(object):
 class dictionary_keyiterator(__sequence_iterator):
     pass
 
+
 class dictionary_valueiterator(__sequence_iterator):
     pass
 
+
 class dictionary_itemiterator(__sequence_iterator):
     pass
+
+
+class __dictionary_view(object):
+    def __init__(self, dictionary):
+        self.dictionary = dictionary
+
+    def __len__(self):
+        return len(self.dictionary)
+
+    def __and__(self, other):
+        self_items = [item for item in self if item in other]
+        other_items = [item for item in other if item in self]
+        return set(self_items + other_items)
+
+    def __rand__(self, other):
+        return self & other
+
+    def __or__(self, other):
+        self_items = [item for item in self]
+        other_items = [item for item in other]
+        return set(self_items + other_items)
+
+    def __ror__(self, other):
+        return self | other
+
+    def __sub__(self, other):
+        return {item for item in self if item not in other}
+
+    def __rsub__(self, other):
+        return {item for item in other if item not in self}
+
+    def __xor__(self, other):
+        self_items = [item for item in self if item not in other]
+        other_items = [item for item in other if item not in self]
+        return set(self_items + other_items)
+
+    def __rxor__(self, other):
+        return self ^ other
+
+
+class dictionay_keys(__dictionary_view):
+    def __iter__(self):
+        for key in self.dictionary.iterkeys():
+            yield key
+
+    def __repr__(self):
+        keys = ''
+        for key in self:
+            if type(key) is str:
+                key = "'" + key + "'"
+            keys += '%s, ' % key
+        return 'dictionary_keys([' + keys[:-2] + '])'
+
+
+class dictionary_values(__dictionary_view):
+    def __iter__(self):
+        for value in self.dictionary.itervalues():
+            yield value
+
+    def __repr__(self):
+        values = ''
+        for value in self:
+            if type(value) is str:
+                value = "'" + value + "'"
+            values += '%s, ' % value
+        return 'dictionary_values([' + values[:-2] + '])'
+        
+
+class dictionary_items(__dictionary_view):
+    def __iter__(self):
+        for key, value in self.dictionary.iteritems():
+            yield key, value
+            
+    def __repr__(self):
+        items = ''
+        for key, value in self:
+            if type(key) is str:
+                key = "'" + key + "'"
+            if type(value) is str:
+                value = "'" + value + "'"
+            items += '(%s, %s), ' % (key, value)
+        return 'dictionary_items([' + items[:-2]  + '])'
 
 
 class Dictionary(object):
@@ -129,7 +213,8 @@ class Dictionary(object):
         return False
     
     def __hash__(self):
-        raise TypeError('unhashable type: \'Dictionary\'')
+        cls = self.__class__.__name__
+        raise TypeError("unhashable type: '{}'".format(cls))
 
     def clear(self):
         self.__size = self.__original_size
