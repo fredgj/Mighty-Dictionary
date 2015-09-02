@@ -139,6 +139,9 @@ class dictionary_items(__dictionary_view):
 
 class Dictionary(object):
     def __init__(self, mapping=None, **kwargs):
+        global _counter, _local_vars
+        _counter = 0
+        _local_vars = 5
         self.__original_size = 8
         self.__size = self.__original_size
         self.__original_n = 3
@@ -155,7 +158,7 @@ class Dictionary(object):
 
     def __contains__(self, key):
         return self.__get_index(key) is not None
-    
+         
     def __setitem__(self, key, value, index=None):
         if index:
             self.entries[index] = (hash(key), key, value)
@@ -185,7 +188,24 @@ class Dictionary(object):
             self.entries[index] = Dummy()
         else:
             raise KeyError(key) 
+    
+    # getattr, setattr and delattr: we are now in control of the dot :D
+    def __getattr__(self, key):
+        return self[key]
+    
+    def __setattr__(self, name, value):
+        global _counter, _local_vars
+        
+        if _counter < _local_vars:
+            self.__dict__[name] = value
+        elif _counter >= _local_vars:
+            self[name] = value
+    
+        _counter += 1
 
+    def __delattr__(self, key):
+        del self[key] 
+    
     def __iter__(self):
         entries = self.__get_entries()
         for _, key, _ in entries:
@@ -217,6 +237,9 @@ class Dictionary(object):
         raise TypeError("unhashable type: '{}'".format(cls))
 
     def clear(self):
+        global _counter, _local_vars
+        _counter = 0
+        _local_vars = 3
         self.__size = self.__original_size
         self.__n = self.__original_n
         self.entries = [None] * self.__size
@@ -375,15 +398,20 @@ class Dictionary(object):
             return True
 
     def __resize(self, size):
+        global _counter, _local_vars
+        _counter = 0
         # Checks if dictionary really need to resize
         # or just have to get rid of dummy entries
         if len(self) >= (len(self.entries) * (2.0/3.0)):
+            _local_vars = 3
             if size < 50000:
                     self.__size *= 4
                     self.__n += 2
             else:
                     self.__size *= 2
                     self.__n += 1
+        else:
+            _local_vars = 1
         entries = self.__get_entries()
         self.entries = [None] * self.__size
         for _, key, value in entries:
