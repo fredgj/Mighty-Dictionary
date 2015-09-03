@@ -190,10 +190,14 @@ class Dictionary(object):
         self.__size = self.__BASE_SIZE
         self.__prev_size = self.__size
         self.__n = 3
-        self.entries = [None] * self.__size
+        self.__entries = [None] * self.__size
         if mapping or kwargs:
             self.update(mapping, **kwargs)
     
+    @property
+    def debug(self):
+        return self.__entries
+
     @classmethod
     def fromkeys(cls, seq, value=None):
         new_dict = cls()
@@ -202,11 +206,11 @@ class Dictionary(object):
         return new_dict
     
     def __len__(self):
-        return len([entry for entry in self.entries if entry and type(entry) is not _Dummy])
+        return len([entry for entry in self.__get_entries()])
     
     # also count Dummy entries
     def __true_len(self):
-        return len([entry for entry in self.entries if entry])
+        return len([entry for entry in self.__entries if entry])
 
     def __contains__(self, key):
         return self.__get_index(key) is not None
@@ -214,10 +218,10 @@ class Dictionary(object):
     def __setitem__(self, key, value, index=None):
         self.lock.acquire()
         index = index if index is not None else self.__get_index(key)
-        self.entries[index] = (hash(key), key, value) 
+        self.__entries[index] = (hash(key), key, value) 
 
         size = self.__true_len()
-        if size >= (len(self.entries) * (2.0/3.0)):
+        if size >= (len(self.__entries) * (2.0/3.0)):
             self.__resize(size)
 
         if self.lock.locked():
@@ -226,7 +230,8 @@ class Dictionary(object):
     def __getitem__(self, key):
         self.lock.acquire()
         index = self.__get_index(key)
-        entry = self.entries[index]
+        print 'got', index
+        entry = self.__entries[index]
         if entry:
             _, _, value = entry
             self.lock.release()
@@ -238,12 +243,13 @@ class Dictionary(object):
     def __delitem__(self, key, index=None):
         self.lock.acquire()
         index = index if index is not None else self.__get_index(key)
-        if self.entries[index]:
-            self.entries[index] = _Dummy()
+        if self.__entries[index]:
+            self.__entries[index] = _Dummy()
         else:
             self.lock.release()
             raise KeyError(key)
         
+        print len(self), self.__prev_size, self.__size
         if len(self) < self.__prev_size * (2.0/3.0):
             self.__shrink()
         
@@ -256,7 +262,7 @@ class Dictionary(object):
     
     def __setattr__(self, name, value):
         global _dict_counter, _dict_local_vars
-        
+        print 'yo', name, value
         if _dict_counter < _dict_local_vars:
             self.__dict__[name] = value
         elif _dict_counter >= _dict_local_vars:
@@ -308,7 +314,7 @@ class Dictionary(object):
 
     def get(self, key, default=None):
         index = self.__get_index(key)
-        entry = self.entries[index]
+        entry = self.__entries[index]
         if entry:
             _, _, value = entry
             return value
@@ -320,7 +326,7 @@ class Dictionary(object):
      
     def pop(self, key, default=None):
         index = self.__get_index(key)
-        item = self.entries[index]
+        item = self.__entries[index]
         if item:
             _,_, value = item
             self.__delitem__(key, index=index)
@@ -334,7 +340,7 @@ class Dictionary(object):
         try:
             key, value = next(self.iteritems())
             index = self.__get_index(key)
-            entry = self.entries[index]
+            entry = self.__entries[index]
             if entry is not None:
                 self.__delitem__(key, index=index)
                 return key,value
@@ -343,7 +349,7 @@ class Dictionary(object):
     
     def setdefault(self, key, default=None):
         index = self.__get_index(key)
-        entry = self.entries[index]
+        entry = self.__entries[index]
         if entry is not None:
             _, _, value = entry
             return value
@@ -374,7 +380,7 @@ class Dictionary(object):
             self[key] = value
     
     def __get_entries(self):
-        return (entry for entry in self.entries if entry and type(entry) is not _Dummy)
+        return (entry for entry in self.__entries if entry and type(entry) is not _Dummy)
     
     def keys(self):
         entries = self.__get_entries()
@@ -418,7 +424,7 @@ class Dictionary(object):
 
     def __get_index(self, key):
         index = self.__calculate_index(key)
-        entry = self.entries[index]
+        entry = self.__entries[index]
         if entry and type(entry) is not _Dummy:
             entry_hash, entry_key, value = entry
             if entry_hash == hash(key) and entry_key == key:
@@ -446,12 +452,12 @@ class Dictionary(object):
                 return new_index
     
     def __valid_index(self, index, key):
-        entry = self.entries[index]
+        entry = self.__entries[index]
         if entry and type(entry) is not _Dummy:
             entry_hash, entry_key, _ = entry
             if entry_hash == hash(key) and entry_key == key:
                 return True
-        elif not self.entries[index]:
+        elif not self.__entries[index]:
             return True
 
     def __resize(self, size):
@@ -460,7 +466,7 @@ class Dictionary(object):
         
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
-        if len(self) >= (len(self.entries) * (2.0/3.0)):
+        if len(self) >= (len(self.__entries) * (2.0/3.0)):
             _dict_local_vars = 4
             if size < 50000:
                     self.__size *= 4
@@ -479,20 +485,28 @@ class Dictionary(object):
     def __shrink(self):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
-        _dict_local_vars = 3
-        
-        if len(self) < 50000:
-            self.__size /= 4
+        print 'shrinking'
+        shrink = False
+        if len(self) < 50000 and self.__size > self.__BASE_SIZE:
+            _dict_local_vars = 2
+            self.__size = self.__size/4
             self.__n -= 2
-        else:
-            self.__size /=2
+            shrink = True
+        elif len(self) >= 50000:
+            _dict_local_vars = 2
+            size = self.__size/2
             self.__n -= 1
-
-        self.__add_entries()
+            shrink = True
+        if shrink:
+            self.__add_entries()
 
     def __add_entries(self):
+        global _dict_counter, _dict_local_vars
+        _dict_counter = 0
+        _dict_local_vars = 1
+        print 'im here'
         entries = self.__get_entries()
-        self.entries = [None] * self.__size
+        self.__entries = [None] * self.__size
         for _, key, value in entries:
             self.lock.release()
             self[key] = value
