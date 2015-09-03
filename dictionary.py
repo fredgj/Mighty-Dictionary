@@ -39,9 +39,9 @@ class __sequence_iterator(object):
     __metaclass__ = TypeReturn
     
     def __init__(self, sequence):
-        global _counter, _local_vars
-        _counter = 0
-        _local_vars = 2
+        global _iter_counter, _iter_local_vars
+        _iter_counter = 0
+        _iter_local_vars = 2
         self.sequence = sequence
         # Hide the underscore from class name whenever printing it
         self.__class__.__name__ = self.__class__.__name__[1:]
@@ -58,9 +58,9 @@ class __sequence_iterator(object):
         return '<{} object at {}>'.format(cls, address)
     
     def __setattr__(self, name, value):
-        global _counter, _local_vars
-        _counter += 1
-        if _counter < _local_vars:
+        global _iter_counter, _iter_local_vars
+        _iter_counter += 1
+        if _iter_counter < _iter_local_vars:
             self.__dict__[name] = value
         elif hasattr(self, name):
             self.__dict__[name] = value
@@ -86,10 +86,14 @@ class __dictionary_view(object):
     __metaclass__ = TypeReturn
 
     def __init__(self, dictionary):
-        self.dictionary = dictionary
+        global _view_counter, _view_local_vars
+        _view_counter = 0
+        _view_local_vars = 2
+        self._dictionary = dictionary
+        self.__class__.__name__ = self.__class__.__name__[1:]
 
     def __len__(self):
-        return len(self.dictionary)
+        return len(self._dictionary)
 
     def __and__(self, other):
         self_items = [item for item in self if item in other]
@@ -121,41 +125,55 @@ class __dictionary_view(object):
     def __rxor__(self, other):
         return self ^ other
 
+    def __setattr__(self, name, value):
+        global _view_counter, _view_local_vars
+        _view_counter += 1
+        if _view_counter < _view_local_vars:
+            self.__dict__[name] = value
+        elif hasattr(self, name):
+            self.__dict__[name] = value
+        else:
+            cls = self.__class__.__name__
+            raise AttributeError("{} object has not attribute {}".format(cls, name))
+
 
 class _dictionary_keys(__dictionary_view):
     def __iter__(self):
-        for key in self.dictionary.iterkeys():
+        for key in self._dictionary.iterkeys():
             yield key
 
     def __repr__(self):
+        cls = self.__class__.__name__
         keys = ''
         for key in self:
             if type(key) is str:
                 key = "'" + key + "'"
             keys += '%s, ' % key
-        return 'dictionary_keys([' + keys[:-2] + '])'
+        return '{}([{}])'.format(cls, keys[:-2])
 
 
 class _dictionary_values(__dictionary_view):
     def __iter__(self):
-        for value in self.dictionary.itervalues():
+        for value in self._dictionary.itervalues():
             yield value
 
     def __repr__(self):
+        cls = self.__class__.__name__
         values = ''
         for value in self:
             if type(value) is str:
                 value = "'" + value + "'"
             values += '%s, ' % value
-        return 'dictionary_values([' + values[:-2] + '])'
+        return '{}([{}])'.format(cls, values[:-2])
         
 
 class _dictionary_items(__dictionary_view):
     def __iter__(self):
-        for key, value in self.dictionary.iteritems():
+        for key, value in self._dictionary.iteritems():
             yield key, value
             
     def __repr__(self):
+        cls = self.__class__.__name__
         items = ''
         for key, value in self:
             if type(key) is str:
@@ -163,14 +181,14 @@ class _dictionary_items(__dictionary_view):
             if type(value) is str:
                 value = "'" + value + "'"
             items += '(%s, %s), ' % (key, value)
-        return 'dictionary_items([' + items[:-2]  + '])'
+        return '{}([{}])'.format(cls, items[:-2])
 
 
 class Dictionary(object):
     def __init__(self, mapping=None, **kwargs):
-        global _counter, _local_vars
-        _counter = 0
-        _local_vars = 5
+        global _dict_counter, _dict_local_vars
+        _dict_counter = 0
+        _dict_local_vars = 5
         self.__original_size = 8
         self.__size = self.__original_size
         self.__original_n = 3
@@ -223,14 +241,14 @@ class Dictionary(object):
         return self[key]
     
     def __setattr__(self, name, value):
-        global _counter, _local_vars
+        global _dict_counter, _dict_local_vars
         
-        if _counter < _local_vars:
+        if _dict_counter < _dict_local_vars:
             self.__dict__[name] = value
-        elif _counter >= _local_vars:
+        elif _dict_counter >= _dict_local_vars:
             self[name] = value
     
-        _counter += 1
+        _dict_counter += 1
 
     def __delattr__(self, key):
         del self[key] 
@@ -266,9 +284,9 @@ class Dictionary(object):
         raise TypeError("unhashable type: '{}'".format(cls))
 
     def clear(self):
-        global _counter, _local_vars
-        _counter = 0
-        _local_vars = 3
+        global _dict_counter, _dict_local_vars
+        _dict_counter = 0
+        _dict_local_vars = 3
         self.__size = self.__original_size
         self.__n = self.__original_n
         self.entries = [None] * self.__size
@@ -427,12 +445,12 @@ class Dictionary(object):
             return True
 
     def __resize(self, size):
-        global _counter, _local_vars
-        _counter = 0
+        global _dict_counter, _dict_local_vars
+        _dict_counter = 0
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
         if len(self) >= (len(self.entries) * (2.0/3.0)):
-            _local_vars = 3
+            _dict_local_vars = 3
             if size < 50000:
                     self.__size *= 4
                     self.__n += 2
@@ -440,7 +458,7 @@ class Dictionary(object):
                     self.__size *= 2
                     self.__n += 1
         else:
-            _local_vars = 1
+            _dict_local_vars = 1
         entries = self.__get_entries()
         self.entries = [None] * self.__size
         for _, key, value in entries:
