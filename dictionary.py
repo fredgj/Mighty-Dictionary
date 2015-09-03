@@ -1,6 +1,12 @@
 # This is a reimplementation of pythons built-in dictionary
 # inspired by Brandon Craig Rhodes talk from PyCon 2010: The Mighty Dictionary
 
+import sys
+from threading import Lock
+
+version = sys.version_info
+
+major,_,_,_,_ = version
 
 def bits(n):
     n += 2**32
@@ -15,22 +21,40 @@ def calculate_index(key, n):
     return dec(bits(hash(key))[-n:])
 
 
+class TypeReturn(type):
+    def __repr__(cls):
+        name = cls.__name__
+        name = name[1:] if name.startswith('_') else name
+        return "<type '{}'>".format(name)
+
+#class Test(metaclass=TypeReturn):
+#    pass
+        
+
 # Dummy class for leaving a dummy value until next
 # time the dictionary gets resized in case a key already has collided with
 # the index where the deleted object was stored
 class _Dummy(object):
+    __metaclass__ = TypeReturn
+
     def __repr__(self):
         return 'Dummy'
 
 
 class __sequence_iterator(object):
+    __metaclass__ = TypeReturn
+    
     def __init__(self, sequence):
+        global _counter, _local_vars
+        _counter = 0
+        _local_vars = 3
         self.sequence = sequence
         self.counter = 0
+        self.__class__.__name__ = self.__class__.__name__[1:]
 
     def __iter__(self):
         return self
-    
+
     def next(self):
         if self.counter >= len(self.sequence):
             raise StopIteration
@@ -39,20 +63,34 @@ class __sequence_iterator(object):
             self.counter += 1
             return item
     
-    # for python3 support
-    __next__ = next
+    def __repr__(self):
+        cls = self.__class__.__name__
+        address = hex(id(self))
+        return '<{} object at {}>'.format(cls, address)
+    
+    def __setattr__(self, name, value):
+        global _counter, _local_vars
+        _counter += 1
+        if _counter < _local_vars:
+            self.__dict__[name] = value
+        elif hasattr(self, name):
+            self.__dict__[name] = value
+        else:
+            cls = self.__class__.__name__
+            raise AttributeError("{} object has not attribute {}".format(cls, name))
 
 
-class dictionary_keyiterator(__sequence_iterator):
+class _dictionary_keyiterator(__sequence_iterator):
     pass
 
 
-class dictionary_valueiterator(__sequence_iterator):
+class _dictionary_valueiterator(__sequence_iterator):
     pass
 
 
-class dictionary_itemiterator(__sequence_iterator):
+class _dictionary_itemiterator(__sequence_iterator):
     pass
+
 
 
 class __dictionary_view(object):
@@ -338,17 +376,17 @@ class Dictionary(object):
     def iterkeys(self):
         _entries = self.__get_entries()
         entries = [key for _, key, _ in _entries]
-        return dictionary_keyiterator(entries)
+        return _dictionary_keyiterator(entries)
 
     def iteritems(self):
         _entries = self.__get_entries()
         entries = [(key, value) for _, key, value in _entries]
-        return dictionary_itemiterator(entries)
+        return _dictionary_itemiterator(entries)
 
     def itervalues(self):
         _entries = self.__get_entries()
         entries = [value for _, _, value in _entries]
-        return dictionary_valueiterator(entries)
+        return _dictionary_valueiterator(entries)
 
     def viewkeys(self):
         return dictionay_keys(self)
@@ -418,3 +456,9 @@ class Dictionary(object):
             self[key] = value
 
 
+
+
+
+
+d = Dictionary(a=1, b=2, c=3)
+i = d.iteritems()
