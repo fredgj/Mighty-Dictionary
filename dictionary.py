@@ -230,7 +230,6 @@ class Dictionary(object):
     def __getitem__(self, key):
         self.lock.acquire()
         index = self.__get_index(key)
-        print 'got', index
         entry = self.__entries[index]
         if entry:
             _, _, value = entry
@@ -249,7 +248,6 @@ class Dictionary(object):
             self.lock.release()
             raise KeyError(key)
         
-        print len(self), self.__prev_size, self.__size
         if len(self) < self.__prev_size * (2.0/3.0):
             self.__shrink()
         
@@ -262,7 +260,7 @@ class Dictionary(object):
     
     def __setattr__(self, name, value):
         global _dict_counter, _dict_local_vars
-        print 'yo', name, value
+        
         if _dict_counter < _dict_local_vars:
             self.__dict__[name] = value
         elif _dict_counter >= _dict_local_vars:
@@ -485,7 +483,6 @@ class Dictionary(object):
     def __shrink(self):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
-        print 'shrinking'
         shrink = False
         if len(self) < 50000 and self.__size > self.__BASE_SIZE:
             _dict_local_vars = 2
@@ -504,7 +501,6 @@ class Dictionary(object):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
         _dict_local_vars = 1
-        print 'im here'
         entries = self.__get_entries()
         self.__entries = [None] * self.__size
         for _, key, value in entries:
