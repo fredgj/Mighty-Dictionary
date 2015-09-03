@@ -81,7 +81,6 @@ class _dictionary_itemiterator(__sequence_iterator):
     pass
 
 
-
 class __dictionary_view(object):
     __metaclass__ = TypeReturn
 
@@ -188,14 +187,21 @@ class Dictionary(object):
     def __init__(self, mapping=None, **kwargs):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
-        _dict_local_vars = 5
-        self.__original_size = 8
-        self.__size = self.__original_size
-        self.__original_n = 3
-        self.__n = self.__original_n
+        _dict_local_vars = 4
+        self.lock = Lock()
+        self.__size = 8
+        self.__n = 3
         self.entries = [None] * self.__size
-        self.update(mapping, **kwargs)
-
+        if mapping or kwargs:
+            self.update(mapping, **kwargs)
+    
+    @classmethod
+    def fromkeys(cls, seq, value=None):
+        new_dict = cls()
+        for key in seq:
+            new_dict[key] = value
+        return new_dict
+    
     def __len__(self):
         return len([entry for entry in self.entries if entry and type(entry) is not _Dummy])
     
@@ -207,34 +213,38 @@ class Dictionary(object):
         return self.__get_index(key) is not None
          
     def __setitem__(self, key, value, index=None):
-        if index:
-            self.entries[index] = (hash(key), key, value)
-        else:
-            index = self.__get_index(key)
-            self.entries[index] = (hash(key), key, value)
-        
+        self.lock.acquire()
+        index = index if index is not None else self.__get_index(key)
+        self.entries[index] = (hash(key), key, value) 
+
         size = self.__true_len()
         if size >= (len(self.entries) * (2.0/3.0)):
             self.__resize(size)
+
+        if self.lock.locked():
+            self.lock.release()
     
     def __getitem__(self, key):
+        self.lock.acquire()
         index = self.__get_index(key)
-        if self.entries[index]:
-            _, _, value = self.entries[index]
+        entry = self.entries[index]
+        if entry:
+            _, _, value = entry
+            self.lock.release()
             return value
         else:
+            self.lock.release()
             raise KeyError(key)
     
     def __delitem__(self, key, index=None):
-        if index is not None:
+        self.lock.acquire()
+        index = index if index is not None else self.__get_index(key)
+        if self.entries[index]:
             self.entries[index] = _Dummy()
-            return
-        
-        index = self.__get_index(key)
-        if index is not None:
-            self.entries[index] = _Dummy()
+            self.lock.release()
         else:
-            raise KeyError(key) 
+            self.lock.release()
+            raise KeyError(key)
     
     # getattr, setattr and delattr: we are now in control of the dot :D
     def __getattr__(self, key):
@@ -284,12 +294,7 @@ class Dictionary(object):
         raise TypeError("unhashable type: '{}'".format(cls))
 
     def clear(self):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        _dict_local_vars = 3
-        self.__size = self.__original_size
-        self.__n = self.__original_n
-        self.entries = [None] * self.__size
+        self.__init__()
 
     def copy(self):
         cpy = Dictionary()
@@ -299,20 +304,15 @@ class Dictionary(object):
 
     def get(self, key, default=None):
         index = self.__get_index(key)
-        if index is not None:
-            _, _, value = self.entries[index]
+        entry = self.entries[index]
+        if entry:
+            _, _, value = entry
             return value
-        return default
+        else:
+            return default
 
     def has_key(self, key):
         return key in self
-    
-    @classmethod
-    def fromkeys(cls, seq, value=None):
-        d = cls()
-        for key in seq:
-            d[key] = value
-        return d
      
     def pop(self, key, default=None):
         index = self.__get_index(key)
@@ -462,7 +462,13 @@ class Dictionary(object):
         entries = self.__get_entries()
         self.entries = [None] * self.__size
         for _, key, value in entries:
+            self.lock.release()
             self[key] = value
+            self.lock.acquire()
+        
+        self.lock.release()
+        #if self.lock.locked():
+        #    self.lock.release()
 
 
 
