@@ -83,6 +83,8 @@ class _dictionary_itemiterator(__sequence_iterator):
 
 
 class __dictionary_view(object):
+    __metaclass__ = TypeReturn
+
     def __init__(self, dictionary):
         self.dictionary = dictionary
 
@@ -120,7 +122,7 @@ class __dictionary_view(object):
         return self ^ other
 
 
-class dictionay_keys(__dictionary_view):
+class _dictionary_keys(__dictionary_view):
     def __iter__(self):
         for key in self.dictionary.iterkeys():
             yield key
@@ -134,7 +136,7 @@ class dictionay_keys(__dictionary_view):
         return 'dictionary_keys([' + keys[:-2] + '])'
 
 
-class dictionary_values(__dictionary_view):
+class _dictionary_values(__dictionary_view):
     def __iter__(self):
         for value in self.dictionary.itervalues():
             yield value
@@ -148,7 +150,7 @@ class dictionary_values(__dictionary_view):
         return 'dictionary_values([' + values[:-2] + '])'
         
 
-class dictionary_items(__dictionary_view):
+class _dictionary_items(__dictionary_view):
     def __iter__(self):
         for key, value in self.dictionary.iteritems():
             yield key, value
@@ -378,13 +380,13 @@ class Dictionary(object):
         return _dictionary_valueiterator(entries)
 
     def viewkeys(self):
-        return dictionay_keys(self)
+        return _dictionary_keys(self)
 
     def viewvalues(self):
-        return dictionary_values(self)
+        return _dictionary_values(self)
 
     def viewitems(self):
-        return dictionary_items(self)
+        return _dictionary_items(self)
     
     def __get_index(self, key):
         index = calculate_index(key, self.__n)
