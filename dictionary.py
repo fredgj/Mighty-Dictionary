@@ -12,11 +12,6 @@ def bits(n):
 def dec(binary):
     return int(binary, 2)
 
-
-def calculate_index(key, n):
-    return dec(bits(hash(key))[-n:])
-
-
 # Meta class to control what class name type returns
 class TypeReturn(type):
     def __repr__(cls):
@@ -184,12 +179,16 @@ class _dictionary_items(__dictionary_view):
 
 
 class Dictionary(object):
+    
+    __BASE_SIZE = 8
+    
     def __init__(self, mapping=None, **kwargs):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
-        _dict_local_vars = 4
+        _dict_local_vars = 5
         self.lock = Lock()
-        self.__size = 8
+        self.__size = self.__BASE_SIZE
+        self.__prev_size = self.__size
         self.__n = 3
         self.entries = [None] * self.__size
         if mapping or kwargs:
@@ -241,11 +240,16 @@ class Dictionary(object):
         index = index if index is not None else self.__get_index(key)
         if self.entries[index]:
             self.entries[index] = _Dummy()
-            self.lock.release()
         else:
             self.lock.release()
             raise KeyError(key)
-    
+        
+        if len(self) < self.__prev_size * (2.0/3.0):
+            self.__shrink()
+        
+        if self.lock.locked():
+            self.lock.release()
+
     # getattr, setattr and delattr: we are now in control of the dot :D
     def __getattr__(self, key):
         return self[key]
@@ -362,8 +366,10 @@ class Dictionary(object):
     def __insert_from_sequence(self, sequence):
         for i, pair in enumerate(sequence):
             length = len(pair)
+            
             if length != 2:
                 raise ValueError('dictionary update sequence element #{} has lenght {}; 2 is required'.format(i, length))
+            
             key, value = pair
             self[key] = value
     
@@ -405,9 +411,13 @@ class Dictionary(object):
 
     def viewitems(self):
         return _dictionary_items(self)
-    
+
+
+    def __calculate_index(self, key):
+        return dec(bits(hash(key))[-self.__n:])
+
     def __get_index(self, key):
-        index = calculate_index(key, self.__n)
+        index = self.__calculate_index(key)
         entry = self.entries[index]
         if entry and type(entry) is not _Dummy:
             entry_hash, entry_key, value = entry
@@ -419,7 +429,7 @@ class Dictionary(object):
         j = index
         while True:
             j = ((5*j) + 1) % 2**index
-            new_index = calculate_index(j, self.__n)
+            new_index = self.__calculate_index(j)
             if self.__valid_index(new_index, key):
                 return new_index
             if new_index == index:
@@ -431,7 +441,7 @@ class Dictionary(object):
         while True:
             j = (5*j) + 1 + perturb
             perturb <<= 5
-            new_index = calculate_index(j, self.__n)
+            new_index = self.__calculate_index(j)
             if self.__valid_index(new_index, key):
                 return new_index
     
@@ -447,33 +457,49 @@ class Dictionary(object):
     def __resize(self, size):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
+        
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
         if len(self) >= (len(self.entries) * (2.0/3.0)):
-            _dict_local_vars = 3
+            _dict_local_vars = 4
             if size < 50000:
                     self.__size *= 4
+                    prev = self.__prev_size/4
+                    self.__prev_size = prev if prev > self.__BASE_SIZE else self.__BASE_SIZE
                     self.__n += 2
             else:
                     self.__size *= 2
+                    self.__prev_size /= 2
                     self.__n += 1
         else:
             _dict_local_vars = 1
+        
+        self.__add_entries()
+        
+    def __shrink(self):
+        global _dict_counter, _dict_local_vars
+        _dict_counter = 0
+        _dict_local_vars = 3
+        
+        if len(self) < 50000:
+            self.__size /= 4
+            self.__n -= 2
+        else:
+            self.__size /=2
+            self.__n -= 1
+
+        self.__add_entries()
+
+    def __add_entries(self):
         entries = self.__get_entries()
         self.entries = [None] * self.__size
         for _, key, value in entries:
             self.lock.release()
             self[key] = value
             self.lock.acquire()
-        
         self.lock.release()
-        #if self.lock.locked():
-        #    self.lock.release()
 
-
-
-
-
+    
 
 d = Dictionary(a=1, b=2, c=3)
 i = d.iteritems()
