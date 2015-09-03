@@ -21,15 +21,13 @@ def calculate_index(key, n):
     return dec(bits(hash(key))[-n:])
 
 
+# Meta class to control what class name type returns
 class TypeReturn(type):
     def __repr__(cls):
         name = cls.__name__
         name = name[1:] if name.startswith('_') else name
         return "<type '{}'>".format(name)
 
-#class Test(metaclass=TypeReturn):
-#    pass
-        
 
 # Dummy class for leaving a dummy value until next
 # time the dictionary gets resized in case a key already has collided with
@@ -47,22 +45,17 @@ class __sequence_iterator(object):
     def __init__(self, sequence):
         global _counter, _local_vars
         _counter = 0
-        _local_vars = 3
+        _local_vars = 2
         self.sequence = sequence
-        self.counter = 0
+        # Hide the underscore from class name whenever printing it
         self.__class__.__name__ = self.__class__.__name__[1:]
 
     def __iter__(self):
         return self
 
     def next(self):
-        if self.counter >= len(self.sequence):
-            raise StopIteration
-        else:
-            item = self.sequence[self.counter]
-            self.counter += 1
-            return item
-    
+        return(next(self.sequence))
+
     def __repr__(self):
         cls = self.__class__.__name__
         address = hex(id(self))
@@ -375,17 +368,17 @@ class Dictionary(object):
 
     def iterkeys(self):
         _entries = self.__get_entries()
-        entries = [key for _, key, _ in _entries]
+        entries = (key for _, key, _ in _entries)
         return _dictionary_keyiterator(entries)
 
     def iteritems(self):
         _entries = self.__get_entries()
-        entries = [(key, value) for _, key, value in _entries]
+        entries = ((key, value) for _, key, value in _entries)
         return _dictionary_itemiterator(entries)
 
     def itervalues(self):
         _entries = self.__get_entries()
-        entries = [value for _, _, value in _entries]
+        entries = (value for _, _, value in _entries)
         return _dictionary_valueiterator(entries)
 
     def viewkeys(self):
