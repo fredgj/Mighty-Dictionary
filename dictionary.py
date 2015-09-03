@@ -1,12 +1,8 @@
 # This is a reimplementation of pythons built-in dictionary
 # inspired by Brandon Craig Rhodes talk from PyCon 2010: The Mighty Dictionary
 
-import sys
 from threading import Lock
 
-version = sys.version_info
-
-major,_,_,_,_ = version
 
 def bits(n):
     n += 2**32
