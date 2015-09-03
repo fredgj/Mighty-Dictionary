@@ -42,7 +42,7 @@ class __sequence_iterator(object):
         global _iter_counter, _iter_local_vars
         _iter_counter = 0
         _iter_local_vars = 2
-        self.sequence = sequence
+        self.__sequence = sequence
         # Hide the underscore from class name whenever printing it
         self.__class__.__name__ = self.__class__.__name__[1:]
 
@@ -50,7 +50,7 @@ class __sequence_iterator(object):
         return self
 
     def next(self):
-        return(next(self.sequence))
+        return(next(self.__sequence))
 
     def __repr__(self):
         cls = self.__class__.__name__
