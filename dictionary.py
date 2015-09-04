@@ -12,6 +12,7 @@ def bits(n):
 def dec(binary):
     return int(binary, 2)
 
+
 # Meta class to control what class name type returns
 class TypeReturn(type):
     def __repr__(cls):
@@ -39,7 +40,8 @@ class __sequence_iterator(object):
         _iter_local_vars = 2
         self.__sequence = sequence
         # Hide the underscore from class name whenever printing it
-        self.__class__.__name__ = self.__class__.__name__[1:]
+        name = self.__class__.__name__
+        self.__class__.__name__ = name[1:] if name.startswith('_') else name
 
     def __iter__(self):
         return self
@@ -84,7 +86,8 @@ class __dictionary_view(object):
         _view_counter = 0
         _view_local_vars = 2
         self._dictionary = dictionary
-        self.__class__.__name__ = self.__class__.__name__[1:]
+        name = self.__class__.__name__
+        self.__class__.__name__ = name[1:] if name.startswith('_') else name
 
     def __len__(self):
         return len(self._dictionary)
@@ -182,7 +185,9 @@ class Dictionary(object):
     
     __BASE_SIZE = 8
     
-    def __init__(self, mapping=None, **kwargs):
+    # Sequence must be either anther dictionary or
+    # a sequece of key-value pairs so self[key] = value
+    def __init__(self, sequence=None, **kwargs):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
         _dict_local_vars = 5
@@ -191,8 +196,8 @@ class Dictionary(object):
         self.__prev_size = self.__size
         self.__n = 3
         self.__entries = [None] * self.__size
-        if mapping or kwargs:
-            self.update(mapping, **kwargs)
+        if sequence or kwargs:
+            self.update(sequence, **kwargs)
     
     @property
     def debug(self):
@@ -446,26 +451,26 @@ class Dictionary(object):
             j = (5*j) + 1 + perturb
             perturb <<= 5
             new_index = self.__calculate_index(j)
-            if self.__valid_index(new_index, key):
-                return new_index
+            if not self.__valid_index(new_index, key):
+                continue
+            return new_index
     
     def __valid_index(self, index, key):
         entry = self.__entries[index]
-        if entry and type(entry) is not _Dummy:
-            entry_hash, entry_key, _ = entry
-            if entry_hash == hash(key) and entry_key == key:
-                return True
-        elif not self.__entries[index]:
+        if not self.__entries[index]:
             return True
+        elif entry and type(entry) is not _Dummy:
+            entry_hash, entry_key, _ = entry
+            return entry_hash == hash(key) and entry_key == key
+
 
     def __resize(self, size):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
-        
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
         if len(self) >= (len(self.__entries) * (2.0/3.0)):
-            _dict_local_vars = 4
+            _dict_local_vars = 3
             if size < 50000:
                     self.__size *= 4
                     prev = self.__prev_size/4
@@ -503,11 +508,11 @@ class Dictionary(object):
         _dict_local_vars = 1
         entries = self.__get_entries()
         self.__entries = [None] * self.__size
+        
         for _, key, value in entries:
-            self.lock.release()
+            if self.lock.locked():
+                self.lock.release()
             self[key] = value
-            self.lock.acquire()
-        self.lock.release()
 
     
 
