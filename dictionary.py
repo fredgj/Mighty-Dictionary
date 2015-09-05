@@ -366,7 +366,7 @@ class Dictionary(object):
         self.__insert_from_dict(kwargs)
     
     def keys(self):
-        return [key for _, _, key, _ in self.__get_entries()]
+        return [key for _, key, _ in self.__get_entries()]
 
     def items(self):
         return [(key, value) for _, key, value in self.__get_entries()]
@@ -483,17 +483,17 @@ class Dictionary(object):
     def __shrink(self):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
-        shrink = False
+        shrink = True
         if len(self) < 50000 and self.__size > self.__BASE_SIZE:
             _dict_local_vars = 2
             self.__size = self.__size/4
             self.__n -= 2
-            shrink = True
         elif len(self) >= 50000:
             _dict_local_vars = 2
             size = self.__size/2
             self.__n -= 1
-            shrink = True
+        else:
+            shrink = False
         
         if shrink:
             self.__add_entries()
@@ -504,7 +504,7 @@ class Dictionary(object):
         _dict_local_vars = 1
         entries = self.__get_entries()
         self.__entries = [None] * self.__size
+        
         for _, key, value in entries:
-            #self.lock.release()
             self[key] = value
     
