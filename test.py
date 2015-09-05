@@ -1,47 +1,68 @@
 import random
 import string
-from dictionary import Dictionary
+import sys
+import unittest
 
 
-#d = Dictionary()
-
-#for i in xrange(100000):
-#    key = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(random.randint(1,20)))
-#    value = random.randint(0,100)
-#    d[key] = value
-#    print '{}: inserting: <{}, {}>'.format(i, key, value)
+major_version, _, _, _, _ = sys.version_info
 
 
-d = Dictionary()
-s = set()
-n = 10000
-print 'generating {} random keys'.format(n)
+if major_version == 3:
+    from python3.dictionary import Dictionary
+else:
+    from python2.dictionary import Dictionary
+    range = xrange
 
 
-for i in xrange(n):
-    key = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(random.randint(1,20)))
-    s.add((key, 1))
+
+class Test(unittest.TestCase):
+
+    def insert_random(self, n, low, high, thread_id=None):
+        if thread_id:
+            print('thread {} starting'.format(thread_id))
+    
+        for i in range(n):
+            key = ''.join(random.choice(string.ascii_uppercase + string.digits) 
+                                for _ in range(random.randint(low, high)))
+        
+            value = random.randint(0, 1000)
+            self.dictionary[key] = value
+            self.reference[key] = value
+    
+        if thread_id:
+            print('thread {} done'.format(thread_id))
+
+    def test_single_thread_test_few_collisions(self):
+        self.dictionary = Dictionary()
+        self.reference = dict()
+        self.insert_random(10000, 0, 1000)
+        
+        self.assertEqual(len(self.dictionary), len(self.reference))
+        
+        for key in self.reference:
+            self.assertIn(key, self.dictionary)
+            self.assertEqual(self.reference[key], self.dictionary[key])
+
+    def test_single_thread_test_many_collisions(self):
+        self.dictionary = Dictionary()
+        self.reference = dict()
+        self.insert_random(10000, 0, 2)
+        
+        self.assertEqual(len(self.dictionary), len(self.reference))
+        
+        for key in self.reference:
+            self.assertIn(key, self.dictionary)
+            self.assertEqual(self.reference[key], self.dictionary[key])
+    
+    def test_multi_thread_test_few_collisions(self):
+        self.dictionary = Dictionary()
+        self.reference = dict()
+    
+    def test_multi_thread_test_many_collisions(self):
+        self.dictionary = Dictionary()
+        self.reference = dict()
 
 
-print 'inserting keys to dictionary'
 
-
-for key, value in s:
-    d[key] = value
-
-
-print 'done inserting'
-
-
-print 'dictionary length: {}, set length: {}'.format(len(d), len(s))
-assert len(d) == len(s)
-
-
-print 'cecking keys'
-for key, _ in s:
-    assert key in d
-
-
-print 'all keys found in dictionary'
-print 'everything went well'
-
+if __name__ == '__main__':
+    unittest.main()
