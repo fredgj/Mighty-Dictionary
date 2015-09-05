@@ -1,7 +1,7 @@
 # This is a reimplementation of pythons built-in dictionary
 # inspired by Brandon Craig Rhodes talk from PyCon 2010: The Mighty Dictionary
 
-from threading import Lock
+from threading import RLock
 
 
 def bits(n):
@@ -185,13 +185,13 @@ class Dictionary(object):
     
     __BASE_SIZE = 8
     
-    # Sequence must be either anther dictionary or
+    # Sequence must be either another dictionary or
     # a sequece of key-value pairs so self[key] = value
     def __init__(self, sequence=None, **kwargs):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
         _dict_local_vars = 5
-        self.lock = Lock()
+        self.lock = RLock()
         self.__size = self.__BASE_SIZE
         self.__prev_size = self.__size
         self.__n = 3
@@ -229,8 +229,7 @@ class Dictionary(object):
         if size >= (len(self.__entries) * (2.0/3.0)):
             self.__resize(size)
 
-        if self.lock.locked():
-            self.lock.release()
+        self.lock.release()
     
     def __getitem__(self, key):
         self.lock.acquire()
@@ -256,8 +255,7 @@ class Dictionary(object):
         if len(self) < self.__prev_size * (2.0/3.0):
             self.__shrink()
         
-        if self.lock.locked():
-            self.lock.release()
+        self.lock.release()
 
     # getattr, setattr and delattr: we are now in control of the dot :D
     def __getattr__(self, key):
@@ -277,19 +275,18 @@ class Dictionary(object):
         del self[key] 
     
     def __iter__(self):
-        entries = self.__get_entries()
-        for _, key, _ in entries:
+        for _, key, _ in self.__get_entries():
             yield key
     
     def __repr__(self):
         items = ''
-        entries = self.__get_entries()
-        for _, key, value in entries:
+        for _, key, value in self.__get_entries():
             if type(key) is str:
                 key = "'" + key + "'"
             if type(value) is str:
                 value = "'" + value + "'"
             items += str(key) + ': ' + str(value) + ', '
+
         return '{' +  items[:-2] + '}'
 
     def __eq__(self, other):
@@ -367,6 +364,36 @@ class Dictionary(object):
             else:
                 self.__insert_from_sequence(other)
         self.__insert_from_dict(kwargs)
+    
+    def keys(self):
+        return [key for _, _, key, _ in self.__get_entries()]
+
+    def items(self):
+        return [(key, value) for _, key, value in self.__get_entries()]
+
+    def values(self):
+        return [value for _, _, value in self.__get_entries()]
+
+    def iterkeys(self):
+        entries = (key for _, key, _ in self.__get_entries())
+        return _dictionary_keyiterator(entries)
+
+    def iteritems(self):
+        entries = ((key, value) for _, key, value in self.__get_entries())
+        return _dictionary_itemiterator(entries)
+
+    def itervalues(self):
+        entries = (value for _, _, value in self.__get_entries())
+        return _dictionary_valueiterator(entries)
+
+    def viewkeys(self):
+        return _dictionary_keys(self)
+
+    def viewvalues(self):
+        return _dictionary_values(self)
+
+    def viewitems(self):
+        return _dictionary_items(self)
 
     def __insert_from_dict(self, other):
         for key in other:
@@ -382,46 +409,14 @@ class Dictionary(object):
             key, value = pair
             self[key] = value
     
+    # Returing a generator expression is the only thing that works here because 
+    # later we will need it in __resize -> __add_entries where all entries from 
+    # the entry table (__entries) are deletet before inserting them to the new table. 
+    # Defining generator object with yield wouldn't work since the entries 
+    # would already be deleted when generating the entries.
     def __get_entries(self):
         return (entry for entry in self.__entries if entry and type(entry) is not _Dummy)
     
-    def keys(self):
-        entries = self.__get_entries()
-        return [key for _, key, _ in entries]
-
-    def items(self):
-        entries = self.__get_entries()
-        return [(key, value) for _, key, value in entries]
-
-    def values(self):
-        entries = self.__get_entries()
-        return [value for _, _, value in entries]
-
-    def iterkeys(self):
-        _entries = self.__get_entries()
-        entries = (key for _, key, _ in _entries)
-        return _dictionary_keyiterator(entries)
-
-    def iteritems(self):
-        _entries = self.__get_entries()
-        entries = ((key, value) for _, key, value in _entries)
-        return _dictionary_itemiterator(entries)
-
-    def itervalues(self):
-        _entries = self.__get_entries()
-        entries = (value for _, _, value in _entries)
-        return _dictionary_valueiterator(entries)
-
-    def viewkeys(self):
-        return _dictionary_keys(self)
-
-    def viewvalues(self):
-        return _dictionary_values(self)
-
-    def viewitems(self):
-        return _dictionary_items(self)
-
-
     def __calculate_index(self, key):
         return dec(bits(hash(key))[-self.__n:])
 
@@ -499,6 +494,7 @@ class Dictionary(object):
             size = self.__size/2
             self.__n -= 1
             shrink = True
+        
         if shrink:
             self.__add_entries()
 
@@ -508,13 +504,7 @@ class Dictionary(object):
         _dict_local_vars = 1
         entries = self.__get_entries()
         self.__entries = [None] * self.__size
-        
         for _, key, value in entries:
-            if self.lock.locked():
-                self.lock.release()
+            #self.lock.release()
             self[key] = value
-
     
-
-d = Dictionary(a=1, b=2, c=3)
-i = d.iteritems()
