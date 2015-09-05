@@ -34,10 +34,8 @@ properly.
 Some of the code is a bit sketchy (global variables together setattr), and some
 of it might be a bit overkill, but i wanted it to emulate pythons dictionary.
 
-Due to pythons global interpreter lock (GIL), resizing the entry table takes
-time. We will start to see this when the size of the entry table reaches 8192 
-and we have 1366 entries to be inserted into the resized entry table.  
-Threading won't help since insertion is cpu bound work and the GIL won't let us
-make us of all available cores, so this strategy will slow it down. 
-Multiprocessing won't work eithe since each process need to share the entry table. 
-Next step would be changing the entry to a numpy array rather than a python list.
+Resizing the table starts slowing down when the dictionary grows. This can't be
+solved by threads due to pythons global interpreter lock (GIL) and the
+dictionary's internal lock which would block the threads when inserting.
+One way to solve this might be writing C extensions. 
+
