@@ -442,7 +442,7 @@ class Dictionary:
     
     def __valid_index(self, index, key):
         entry = self.__entries[index]
-        if not self.__entries[index]:
+        if not entry:
             return True
         elif entry and type(entry) is not _Dummy:
             entry_hash, entry_key, _ = entry
