@@ -29,51 +29,6 @@ class _Dummy(metaclass=TypeReturn):
         return 'Dummy'
 
 
-class __sequence_iterator(metaclass=TypeReturn):
-    def __init__(self, sequence):
-        global _iter_counter, _iter_local_vars
-        _iter_counter = 0
-        _iter_local_vars = 2
-        self.__sequence = sequence
-        # Hide the underscore from class name whenever printing it
-        name = self.__class__.__name__
-        self.__class__.__name__ = name[1:] if name.startswith('_') else name
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return(next(self.__sequence))
-
-    def __repr__(self):
-        cls = self.__class__.__name__
-        address = hex(id(self))
-        return '<{} object at {}>'.format(cls, address)
-    
-    def __setattr__(self, name, value):
-        global _iter_counter, _iter_local_vars
-        _iter_counter += 1
-        if _iter_counter < _iter_local_vars:
-            self.__dict__[name] = value
-        elif hasattr(self, name):
-            self.__dict__[name] = value
-        else:
-            cls = self.__class__.__name__
-            raise AttributeError("{} object has not attribute {}".format(cls, name))
-
-
-class _dictionary_keyiterator(__sequence_iterator):
-    pass
-
-
-class _dictionary_valueiterator(__sequence_iterator):
-    pass
-
-
-class _dictionary_itemiterator(__sequence_iterator):
-    pass
-
-
 class __dictionary_view(metaclass=TypeReturn):
     def __init__(self, dictionary):
         global _view_counter, _view_local_vars
@@ -130,7 +85,7 @@ class __dictionary_view(metaclass=TypeReturn):
 
 class _dictionary_keys(__dictionary_view):
     def __iter__(self):
-        yield from self._dictionary.iterkeys()
+        yield from self._dictionary
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -144,7 +99,8 @@ class _dictionary_keys(__dictionary_view):
 
 class _dictionary_values(__dictionary_view):
     def __iter__(self):
-        yield from self._dictionary.itervalues()
+        for key in self._dictionary:
+            yield self._dictionary[key]
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -158,7 +114,8 @@ class _dictionary_values(__dictionary_view):
 
 class _dictionary_items(__dictionary_view):
     def __iter__(self):
-        yield from self._dictionary.iteritems()
+        for key in self._dictionary:
+            yield key, self._dictionary[key]
             
     def __repr__(self):
         cls = self.__class__.__name__
@@ -356,35 +313,14 @@ class Dictionary:
         self.__insert_from_dict(kwargs)
     
     def keys(self):
-        return [key for _, key, _ in self.__get_entries()]
-
-    def items(self):
-        return [(key, value) for _, key, value in self.__get_entries()]
-
-    def values(self):
-        return [value for _, _, value in self.__get_entries()]
-
-    def iterkeys(self):
-        entries = (key for _, key, _ in self.__get_entries())
-        return _dictionary_keyiterator(entries)
-
-    def iteritems(self):
-        entries = ((key, value) for _, key, value in self.__get_entries())
-        return _dictionary_itemiterator(entries)
-
-    def itervalues(self):
-        entries = (value for _, _, value in self.__get_entries())
-        return _dictionary_valueiterator(entries)
-
-    def viewkeys(self):
         return _dictionary_keys(self)
 
-    def viewvalues(self):
-        return _dictionary_values(self)
-
-    def viewitems(self):
+    def items(self):
         return _dictionary_items(self)
     
+    def values(self):
+        return _dictionary_values(self)
+
     def __insert_from_dict(self, other):
         for key in other:
             self[key] = other[key]
