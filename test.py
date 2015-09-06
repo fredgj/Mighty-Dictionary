@@ -11,7 +11,7 @@ if major_version == 3:
     from python3.dictionary import Dictionary
 else:
     from python2.dictionary import Dictionary
-    #range = xrange
+    range = xrange
 
 
 
