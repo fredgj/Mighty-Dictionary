@@ -4,9 +4,9 @@
 from threading import RLock
 
 
-def bits(n):
-    n += 2**32
-    return bin(n)[-32:]
+def bits(n, size):
+    n += 2**size
+    return bin(n)[-size:]
 
 
 def dec(binary):
@@ -375,16 +375,16 @@ class Dictionary(object):
         return [value for _, _, value in self.__get_entries()]
 
     def iterkeys(self):
-        entries = (key for _, key, _ in self.__get_entries())
-        return _dictionary_keyiterator(entries)
+        keys = (key for _, key, _ in self.__get_entries())
+        return _dictionary_keyiterator(keys)
 
     def iteritems(self):
-        entries = ((key, value) for _, key, value in self.__get_entries())
-        return _dictionary_itemiterator(entries)
+        items = ((key, value) for _, key, value in self.__get_entries())
+        return _dictionary_itemiterator(items)
 
     def itervalues(self):
-        entries = (value for _, _, value in self.__get_entries())
-        return _dictionary_valueiterator(entries)
+        values = (value for _, _, value in self.__get_entries())
+        return _dictionary_valueiterator(values)
 
     def viewkeys(self):
         return _dictionary_keys(self)
@@ -418,7 +418,7 @@ class Dictionary(object):
         return (entry for entry in self.__entries if entry and type(entry) is not _Dummy)
     
     def __calculate_index(self, key):
-        return dec(bits(hash(key))[-self.__n:])
+        return dec(bits(hash(key), self.__n))
 
     def __get_index(self, key):
         index = self.__calculate_index(key)
