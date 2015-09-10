@@ -3,6 +3,7 @@
 
 from threading import RLock
 from ctypes import c_size_t
+from itertools import izip
 
 # Meta class to control what class name type returns
 class TypeReturn(type):
@@ -179,14 +180,7 @@ class Dictionary(object):
     # Sequence must be either another dictionary or
     # a sequece of key-value pairs so self[key] = value
     def __init__(self, sequence=None, **kwargs):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        _dict_local_vars = 5
-        self.lock = RLock()
-        self.__size = self.__BASE_SIZE
-        self.__prev_size = self.__size
-        self.__n = 3
-        self.__entries = [None] * self.__size
+        self.clear()
         if sequence or kwargs:
             self.update(sequence, **kwargs)
     
@@ -283,7 +277,7 @@ class Dictionary(object):
     def __eq__(self, other):
         type_other = type(other)
         if type_other is Dictionary or type_other is dict:
-            dicts = zip(self, other)
+            dicts = izip(self, other)
             return all(key1==key2 and self[key1]==other[key2] 
                        for key1, key2 in dicts)
         else:
@@ -294,7 +288,14 @@ class Dictionary(object):
         raise TypeError("unhashable type: '{}'".format(cls))
 
     def clear(self):
-        self.__init__()
+        global _dict_counter, _dict_local_vars
+        _dict_counter = 0
+        _dict_local_vars = 5
+        self.lock = RLock()
+        self.__size = self.__BASE_SIZE
+        self.__prev_size = self.__size
+        self.__n = 3
+        self.__entries = [None] * self.__size
 
     def copy(self):
         cpy = Dictionary()
