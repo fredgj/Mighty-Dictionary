@@ -1,17 +1,10 @@
 # This is a reimplementation of pythons built-in dictionary
 # inspired by Brandon Craig Rhodes talk from PyCon 2010: The Mighty Dictionary
 
+# TODO zip -> izip
+
 from threading import RLock
-
-
-def bits(n, size):
-    n += 2**size
-    return bin(n)[-size:]
-
-
-def dec(binary):
-    return int(binary, 2)
-
+from ctypes import c_size_t, c_ulong
 
 # Meta class to control what class name type returns
 class TypeReturn(type):
@@ -251,8 +244,8 @@ class Dictionary(object):
         else:
             self.lock.release()
             raise KeyError(key)
-        
-        if len(self) < self.__prev_size * (2.0/3.0):
+
+        if len(self) < self.__prev_size * (2.0/3.0) and self.__size > self.__BASE_SIZE:
             self.__shrink()
         
         self.lock.release()
@@ -290,14 +283,13 @@ class Dictionary(object):
         return '{' +  items[:-2] + '}'
 
     def __eq__(self, other):
-        o_type = type(other)
-        if o_type == Dictionary or o_type == dict:
-            entries = zip(self, other)
-            for key1, key2 in entries:
-                if key1 != key2 or self[key1] != other[key2]:
-                    return False
-            return True
-        return False
+        type_other = type(other)
+        if type_other is Dictionary or type_other is dict:
+            dicts = zip(self, other)
+            return all(key1==key2 and self[key1]==other[key2] 
+                       for key1, key2 in dicts)
+        else:
+            return False
     
     def __hash__(self):
         cls = self.__class__.__name__
@@ -417,51 +409,38 @@ class Dictionary(object):
     def __get_entries(self):
         return (entry for entry in self.__entries if entry and type(entry) is not _Dummy)
     
-    def __calculate_index(self, key):
-        return dec(bits(hash(key), self.__n))
-
     def __get_index(self, key):
-        index = self.__calculate_index(key)
-        entry = self.__entries[index]
-        if entry and type(entry) is not _Dummy:
-            entry_hash, entry_key, value = entry
-            if entry_hash == hash(key) and entry_key == key:
-                return index
-        return self.__probe(index, key)
-    
-    def __probe(self, index, key):
-        j = index
-        while True:
-            j = ((5*j) + 1) % 2**index
-            new_index = self.__calculate_index(j)
-            if self.__valid_index(new_index, key):
-                return new_index
-            if new_index == index:
-                return self.__get_other_bits_of_hash(index, key)
+        mask = self.__size-1
+        key_hash = c_size_t(hash(key))
+        index = key_hash.value & mask
+        
+        if self.__valid_index(index, key):
+            return index
 
-    def __get_other_bits_of_hash(self, index, key):
-        j = index
-        perturb = hash(key)
+        i = index
+        perturb = key_hash
+
         while True:
-            j = (5*j) + 1 + perturb
-            perturb <<= 5
-            new_index = self.__calculate_index(j)
-            if not self.__valid_index(new_index, key):
-                continue
-            return new_index
-    
+            i = (i << 2) + i + perturb.value + 1
+            index = i & mask
+            if self.__valid_index(index, key):
+                return index
+            perturb.value >>= 5
+
     def __valid_index(self, index, key):
         entry = self.__entries[index]
-        if not entry:
+        if entry is None:
             return True
-        elif entry and type(entry) is not _Dummy:
-            entry_hash, entry_key, _ = entry
-            return entry_hash == hash(key) and entry_key == key
-
+        elif type(entry) is _Dummy:
+            return False
+        
+        entry_hash, entry_key, _ = entry
+        return entry_hash == hash(key) and entry_key == key
 
     def __resize(self, size):
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
+        
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
         if len(self) >= (len(self.__entries) * (2.0/3.0)):
@@ -504,7 +483,7 @@ class Dictionary(object):
         _dict_local_vars = 1
         entries = self.__get_entries()
         self.__entries = [None] * self.__size
-        
+
         for _, key, value in entries:
             self[key] = value
     
