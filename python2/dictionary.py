@@ -1,10 +1,8 @@
 # This is a reimplementation of pythons built-in dictionary
 # inspired by Brandon Craig Rhodes talk from PyCon 2010: The Mighty Dictionary
 
-# TODO zip -> izip
-
 from threading import RLock
-from ctypes import c_size_t, c_ulong
+from ctypes import c_size_t
 
 # Meta class to control what class name type returns
 class TypeReturn(type):
