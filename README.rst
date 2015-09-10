@@ -32,24 +32,6 @@ working in a python shell, where being able type d.a instead of
 d['a'] the whole time might be handy, other than that it's nothing more than a 
 neat functionality.
 
-The python 2 version doesn't seem to shrink its entry table when deleting items
-(leaving a dummy value in the entry table) and the entry table contains a number 
-of entries that would fit in a smaller entry table. This is just a memory 
-optimization, but shrinking the table, meaning inserting all the entries in a 
-new table, takes time when there are many entries to be inserted.
-Lets say the dictionary have been resized once meaning the size of the entry
-table is 32 and all items except for one have been deleted, then the entry table would look like this:
-
-.. code:: python
-
-    [<entry>, dummy, dummy, dummy, dummy, dummy, None, ..., None]
-
-Instread of keeping a huge table with lots of dummy values, this implementation
-will shrink it when possible. So the table above would be shrinked to this:
-
-.. code:: python
-    
-    [<entry>, None, None, None, None, None, None, None]
 
 Bugs and issues
 ===============
@@ -68,7 +50,7 @@ One way to solve this might be writing C extensions.
 The python 3 version doesn't seem to insert keys at the same index in the entry
 table as the python 2 version when resizing.
 There also seems to be some minor differences between pypy's and cpython's dict
-implementations when inserting items. 
+implementation's algorithm for calculating indexes in the entry table. 
 Therefore, when running the tests with python 3 or pypy the test won't check
 if the two dictionaries are equal, just that they contain the same key, value
 pairs.
