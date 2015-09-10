@@ -196,6 +196,7 @@ class Dictionary(object):
         return new_dict
     
     def __len__(self):
+        """Return the number of items in the dictionary"""
         return len([entry for entry in self.__get_entries()])
     
     # also count Dummy entries
@@ -203,9 +204,14 @@ class Dictionary(object):
         return len([entry for entry in self.__entries if entry])
 
     def __contains__(self, key):
-        return self.__get_index(key) is not None
+        """Return true if dictionary has key else false"""
+        index = self.__get_index(key)
+        return self.__entries[index] is not None
          
+    # The default argument index is used internally when the index
+    # already has been calculated
     def __setitem__(self, key, value, index=None):
+        """Set d[key] to value"""
         self.lock.acquire()
         index = index if index is not None else self.__get_index(key)
         self.__entries[index] = (hash(key), key, value) 
@@ -217,6 +223,8 @@ class Dictionary(object):
         self.lock.release()
     
     def __getitem__(self, key):
+        """Return the item of dictionary with key 'key'.
+           Raises a KeyError if key is not in the map"""
         self.lock.acquire()
         index = self.__get_index(key)
         entry = self.__entries[index]
@@ -229,6 +237,8 @@ class Dictionary(object):
             raise KeyError(key)
     
     def __delitem__(self, key, index=None):
+        """Remove dictionary[key] from dictionary.
+           Raises a KeyError if key is not in the map"""
         self.lock.acquire()
         index = index if index is not None else self.__get_index(key)
         if self.__entries[index]:

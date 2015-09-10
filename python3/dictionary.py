@@ -158,7 +158,8 @@ class Dictionary:
         return len([entry for entry in self.__entries if entry])
 
     def __contains__(self, key):
-        return self.__get_index(key) is not None
+        index = self.__get_index(key)
+        return self.__entries[index] is not None
          
     def __setitem__(self, key, value, index=None):
         self.lock.acquire()
