@@ -273,7 +273,6 @@ class Dictionary:
         else:
             raise KeyError(key)
         
-    # TODO no iteritems in py3 version
     def popitem(self):
         try:
             key, value = next(iter(self.items()))
