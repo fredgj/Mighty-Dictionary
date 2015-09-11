@@ -250,7 +250,6 @@ class Dictionary(object):
         entry = self.__entries[index]
         
         if self.__valid_entry(entry):
-            del self[key]
             _, _, value = entry
             return value
         else:
