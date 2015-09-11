@@ -28,7 +28,7 @@ class __dictionary_view(metaclass=TypeReturn):
     def __init__(self, dictionary):
         global _view_counter, _view_local_vars
         _view_counter = 0
-        _view_local_vars = 2
+        _view_local_vars = 1 
         self._dictionary = dictionary
         name = self.__class__.__name__
         self.__class__.__name__ = name[1:] if name.startswith('_') else name
@@ -70,11 +70,10 @@ class __dictionary_view(metaclass=TypeReturn):
     # or reasign instance attributes.
     def __setattr__(self, name, value):
         global _view_counter, _view_local_vars
-        _view_counter += 1
+        
         if _view_counter < _view_local_vars:
             self.__dict__[name] = value
-        elif hasattr(self, name):
-            self.__dict__[name] = value
+            _view_counter += 1
         else:
             cls = self.__class__.__name__
             raise AttributeError("{} object has not attribute {}".format(cls, name))
