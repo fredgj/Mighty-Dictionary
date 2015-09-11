@@ -34,7 +34,7 @@ class __sequence_iterator(object):
     def __init__(self, sequence_gen, dictionary):
         global _iter_counter, _iter_local_vars
         _iter_counter = 0
-        _iter_local_vars = 4
+        _iter_local_vars = 3
         self.__sequence = sequence_gen
         self.__dictionary = dictionary
         self.__size = len(dictionary)
@@ -60,11 +60,10 @@ class __sequence_iterator(object):
     # or reasign instance attributes.
     def __setattr__(self, name, value):
         global _iter_counter, _iter_local_vars
-        _iter_counter += 1
+        
         if _iter_counter < _iter_local_vars:
             self.__dict__[name] = value
-        elif hasattr(self, name):
-            self.__dict__[name] = value
+            _iter_counter += 1
         else:
             cls = self.__class__.__name__
             raise AttributeError("{} object has not attribute {}".format(cls, name))
@@ -91,7 +90,7 @@ class __dictionary_view(object):
     def __init__(self, dictionary):
         global _view_counter, _view_local_vars
         _view_counter = 0
-        _view_local_vars = 2
+        _view_local_vars = 1
         self._dictionary = dictionary
         name = self.__class__.__name__
         self.__class__.__name__ = name[1:] if name.startswith('_') else name
@@ -131,15 +130,13 @@ class __dictionary_view(object):
 
     def __setattr__(self, name, value):
         global _view_counter, _view_local_vars
-        _view_counter += 1
+        
         if _view_counter < _view_local_vars:
             self.__dict__[name] = value
-        elif hasattr(self, name):
-            self.__dict__[name] = value
+            _view_counter += 1
         else:
             cls = self.__class__.__name__
             raise AttributeError("{} object has not attribute {}".format(cls, name))
-
 
 class _dictionary_keys(__dictionary_view):
     def __iter__(self):
