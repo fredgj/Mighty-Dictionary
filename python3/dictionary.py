@@ -309,7 +309,7 @@ class Dictionary:
         index = self.__get_index(key)
         entry = self.__entries[index]
         
-        if entry:
+        if entry and type(entry) is not _Dummy:
             _,_, value = entry
             self.__delitem__(key, index=index)
             self.lock.release()
@@ -320,7 +320,7 @@ class Dictionary:
         else:
             self.lock.release()
             raise KeyError(key)
-        
+    
     def popitem(self):
         """Remove and return and remove an arbitrary (key, value) pair from the
            dictionary"""
