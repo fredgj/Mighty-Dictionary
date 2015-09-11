@@ -196,16 +196,13 @@ class Dictionary:
     def __getitem__(self, key):
         """Return the item of dictionary with key 'key'.
            Raises a KeyError if key is not in the map."""
-        self.lock.acquire()
         index = self.__get_index(key)
         entry = self.__entries[index]
         
-        if entry:
+        if entry and type(entry) is not _Dummy:
             _, _, value = entry
-            self.lock.release()
             return value
         else:
-            self.lock.release()
             raise KeyError(key)
     
     # The default argument 'index' is used internally when the index
@@ -215,15 +212,15 @@ class Dictionary:
            Raises a KeyError if key is not in the map"""
         self.lock.acquire()
         index = index if index is not None else self.__get_index(key)
-        
-        if self.__entries[index]:
+        entry = self.__entries[index]
+
+        if entry and type(entry) is not _Dummy:
             self.__len -= 1
             self.__entries[index] = _Dummy()
+            self.lock.release()
         else:
             self.lock.release()
             raise KeyError(key)
-        
-        self.lock.release()
     
     # dictionary.key, same as dictionary[key]
     # return __getitem__(key)
@@ -310,10 +307,10 @@ class Dictionary:
            dictionary, a KeyError is raised."""
         self.lock.acquire()
         index = self.__get_index(key)
-        item = self.__entries[index]
+        entry = self.__entries[index]
         
-        if item:
-            _,_, value = item
+        if entry:
+            _,_, value = entry
             self.__delitem__(key, index=index)
             self.lock.release()
             return value
@@ -328,11 +325,14 @@ class Dictionary:
         """Remove and return and remove an arbitrary (key, value) pair from the
            dictionary"""
         try:
+            self.lock.acquire()
             key, value = next(iter(self.items()))
             del self[key]
             return key, value
         except StopIteration:
-            raise KeyError('popitem(): dictionary is empty')   
+            raise KeyError('popitem(): dictionary is empty')
+        finally:
+            self.lock.release()
     
     def setdefault(self, key, default=None):
         """If the key is in the dictionary, return its value. If not, insert key
