@@ -28,15 +28,7 @@ class DictionaryTest(unittest.TestCase):
                 self.assertEqual(self.dictionary[key], self.reference[key])
         else:
             self.assertEqual(self.dictionary, self.reference, msg='The two dictionaries are not equal')
-            
-            while True:
-                try:
-                    a = self.dictionary.popitem()
-                    b = self.reference.popitem()
-                    self.assertEqual(a,b)
-                except KeyError:
-                    break
-    
+ 
     def insert_random(self, n, low, high, thread_id=None):
         if thread_id is not None:
             print('Thread-{} starting'.format(thread_id))
@@ -55,7 +47,7 @@ class DictionaryTest(unittest.TestCase):
             print('Thread-{} done'.format(thread_id))
 
     def test_single_thread_test_many_unique_keys_(self):
-        print('\nRunning single threaded test wit many unique keys\n')
+        print('\nRunning single threaded test with many unique keys\n')
         self.dictionary = Dictionary()
         self.reference = dict()
         self.insert_random(10000, 0, 1000)
