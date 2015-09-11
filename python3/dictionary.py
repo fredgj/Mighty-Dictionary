@@ -22,6 +22,9 @@ class _Dummy(metaclass=TypeReturn):
 
 
 class __dictionary_view(metaclass=TypeReturn):
+    """provide a dynamic view on the dictionary's entries, which means that 
+       when the dictionary changes, the view reflects this canges."""
+    
     def __init__(self, dictionary):
         global _view_counter, _view_local_vars
         _view_counter = 0
@@ -63,6 +66,8 @@ class __dictionary_view(metaclass=TypeReturn):
     def __rxor__(self, other):
         return self ^ other
 
+    # prevents a user to add more attributes 
+    # or reasign instance attributes.
     def __setattr__(self, name, value):
         global _view_counter, _view_local_vars
         _view_counter += 1
@@ -74,10 +79,16 @@ class __dictionary_view(metaclass=TypeReturn):
             cls = self.__class__.__name__
             raise AttributeError("{} object has not attribute {}".format(cls, name))
 
+    def _runtime_check(self, size):
+        if size != len(self._dictionary):
+            raise RuntimeError('dictionary changed size during iteration')
 
 class _dictionary_keys(__dictionary_view):
     def __iter__(self):
-        yield from self._dictionary
+        size = len(self._dictionary)
+        for _, key, _ in self._dictionary._get_entries():
+            self._runtime_check(size)
+            yield key
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -91,8 +102,10 @@ class _dictionary_keys(__dictionary_view):
 
 class _dictionary_values(__dictionary_view):
     def __iter__(self):
-        for key in self._dictionary:
-            yield self._dictionary[key]
+        size = len(self._dictionary)
+        for _, _, value in self._dictionary._get_entries():
+            self._runtime_check(size)
+            yield value
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -106,8 +119,10 @@ class _dictionary_values(__dictionary_view):
 
 class _dictionary_items(__dictionary_view):
     def __iter__(self):
-        for key in self._dictionary:
-            yield key, self._dictionary[key]
+        size = len(self._dictionary)
+        for _, key, value in self._dictionary._get_entries():
+            self._runtime_check(size)
+            yield key, value
             
     def __repr__(self):
         cls = self.__class__.__name__
@@ -128,14 +143,7 @@ class Dictionary:
     # Sequence must be either anther dictionary or
     # a sequece of key-value pairs so self[key] = value
     def __init__(self, sequence=None, **kwargs):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        _dict_local_vars = 5
-        self.lock = RLock()
-        self.__size = self.__BASE_SIZE
-        self.__prev_size = self.__size
-        self.__n = 3
-        self.__entries = [None] * self.__size
+        self.clear()
         if sequence or kwargs:
             self.update(sequence, **kwargs)
     
@@ -145,37 +153,52 @@ class Dictionary:
 
     @classmethod
     def fromkeys(cls, seq, value=None):
+        """Create a new dictionary with keys from seq and 
+           values set to value"""
         new_dict = cls()
         for key in seq:
             new_dict[key] = value
         return new_dict
     
     def __len__(self):
-        return len([entry for entry in self.__get_entries()])
-    
-    # also count Dummy entries
-    def __true_len(self):
-        return len([entry for entry in self.__entries if entry])
+        """Return the number of items in the dictionary."""
+        return self.__len
 
     def __contains__(self, key):
+        """Return true if dictionary has key else false."""
         index = self.__get_index(key)
         return self.__entries[index] is not None
-         
-    def __setitem__(self, key, value, index=None):
-        self.lock.acquire()
-        index = index if index is not None else self.__get_index(key)
-        self.__entries[index] = (hash(key), key, value) 
-
-        size = self.__true_len()
-        if size >= (len(self.__entries) * (2.0/3.0)):
-            self.__resize(size)
-
-        self.lock.release()
     
-    def __getitem__(self, key):
+    # The default argument 'shrink' is used internally to prevent recursive 
+    # shrinking when inserting entries into the entry table after 
+    # resizing/shrinking the entry table
+    def __setitem__(self, key, value, shrink=True):
+        """Set dictionary[key] to value."""
         self.lock.acquire()
         index = self.__get_index(key)
         entry = self.__entries[index]
+        
+        if entry is None or type(entry) is _Dummy:
+            self.__len += 1
+            self.__true_len += 1
+
+        self.__entries[index] = (hash(key), key, value)
+        
+        if self.__true_len >= (len(self.__entries) * (2.0/3.0)):
+            self.__resize()
+        elif shrink:
+            if len(self) < self.__prev_size * (2.0/3.0) and self.__size > self.__BASE_SIZE:
+                self.__shrink()
+        
+        self.lock.release()
+       
+    def __getitem__(self, key):
+        """Return the item of dictionary with key 'key'.
+           Raises a KeyError if key is not in the map."""
+        self.lock.acquire()
+        index = self.__get_index(key)
+        entry = self.__entries[index]
+        
         if entry:
             _, _, value = entry
             self.lock.release()
@@ -184,44 +207,58 @@ class Dictionary:
             self.lock.release()
             raise KeyError(key)
     
+    # The default argument 'index' is used internally when the index
+    # already has been calculated
     def __delitem__(self, key, index=None):
+        """Remove dictionary[key] from dictionary.
+           Raises a KeyError if key is not in the map"""
         self.lock.acquire()
         index = index if index is not None else self.__get_index(key)
+        
         if self.__entries[index]:
+            self.__length -= 1
             self.__entries[index] = _Dummy()
         else:
             self.lock.release()
             raise KeyError(key)
         
-        if len(self) < self.__prev_size * (2.0/3.0) and self.__size > self.__BASE_SIZE:
-            self.__shrink()
-        
         self.lock.release()
-
-    # getattr, setattr and delattr: we are now in control of the dot :D
+    
+    # dictionary.key, same as dictionary[key]
+    # return __getitem__(key)
     def __getattr__(self, key):
         return self[key]
     
+    # checks if all instance variables have been initialized,
+    # inserts them into the instance dictionry if not, or if
+    # changing the value of an instance variable.
+    # else call __setitem__
+    # dictionary.key = value, same as dictonary[key] = value.
     def __setattr__(self, name, value):
         global _dict_counter, _dict_local_vars
         
-        if _dict_counter < _dict_local_vars:
+        if name in self.__dict__:
             self.__dict__[name] = value
-        elif _dict_counter >= _dict_local_vars:
+        elif _dict_counter < _dict_local_vars:
+            self.__dict__[name] = value
+            _dict_counter += 1
+        else:
             self[name] = value
-    
-        _dict_counter += 1
 
+    # del dictionary.key, same as del dictionary[key]
     def __delattr__(self, key):
         del self[key] 
     
     def __iter__(self):
-        for _, key, _ in self.__get_entries():
-            yield key
-    
+        """Return an iterator over the keys in the dictionary.
+           This it a shortcut for iter(dictionary.keys())."""
+        return iter(self.keys())
+
+    # Not a proper repr, but returns a string so it looks like 
+    # pythons built-in dictionary
     def __repr__(self):
         items = ''
-        for _, key, value in self.__get_entries():
+        for _, key, value in self._get_entries():
             if type(key) is str:
                 key = "'" + key + "'"
             if type(value) is str:
@@ -242,29 +279,37 @@ class Dictionary:
         raise TypeError("unhashable type: '{}'".format(cls))
 
     def clear(self):
-        self.__init__()
+        """Remove all items from the dictionary"""
+        global _dict_counter, _dict_local_vars
+        _dict_counter = 0
+        _dict_local_vars = 6
+        self.lock = RLock()
+        self.__len = 0
+        self.__true_len = 0
+        self.__size = self.__BASE_SIZE
+        self.__prev_size = self.__size
+        self.__entries = [None] * self.__size
 
     def copy(self):
-        cpy = Dictionary()
-        for key, value in self.items():
-            cpy[key] = value
-        return cpy
+        """Return a shallow copy of the dictionary"""
+        return self.__class__(self.items())
 
     def get(self, key, default=None):
-        index = self.__get_index(key)
-        entry = self.__entries[index]
-        if entry:
-            _, _, value = entry
-            return value
-        else:
+        """Return the value for key if key is in the dictionary, else default.
+           If default is not given, it defaults to None, so that this method 
+           never raises a keyerror."""
+        try:
+            return self[key]
+        except KeyError:
             return default
-
-    def has_key(self, key):
-        return key in self
      
     def pop(self, key, default=None):
+        """If the key is in the dictionary, remove it and return its value, 
+           else return default. If default is not given, and key is not in the
+           dictionary, a KeyError is raised."""
         index = self.__get_index(key)
         item = self.__entries[index]
+        
         if item:
             _,_, value = item
             self.__delitem__(key, index=index)
@@ -275,6 +320,8 @@ class Dictionary:
             raise KeyError(key)
         
     def popitem(self):
+        """Remove and return and remove an arbitrary (key, value) pair from the
+           dictionary"""
         try:
             key, value = next(iter(self.items()))
             index = self.__get_index(key)
@@ -286,16 +333,17 @@ class Dictionary:
             raise KeyError('popitem(): dictionary is empty')   
     
     def setdefault(self, key, default=None):
-        index = self.__get_index(key)
-        entry = self.__entries[index]
-        if entry is not None:
-            _, _, value = entry
-            return value
-        else:
-            self.__setitem__(key, default, index=index)
+        """If the key is in the dictionary, return its value. If not, insert key
+           with a value of default and return default. Default defaults to None."""
+        try:
+            return self[key]
+        except KeyError:
+            self[key] = default
             return default
 
     def update(self, other=None, **kwargs):
+        """Update the dictionary with the key/value pairs from other, 
+           overwriting existing keys. Return None"""
         if other:
             if hasattr(other, 'keys'):
                 self.__insert_from_dict(other)
@@ -304,18 +352,23 @@ class Dictionary:
         self.__insert_from_dict(kwargs)
     
     def keys(self):
+        """Return a new view of the dictionary's keys"""
         return _dictionary_keys(self)
 
     def items(self):
+        """Return a new view of the dictionary's items (key/value pairs)."""
         return _dictionary_items(self)
     
     def values(self):
+        """Return a new view of the dictionary's values"""
         return _dictionary_values(self)
 
     def __insert_from_dict(self, other):
         for key in other:
             self[key] = other[key]
-
+    
+    # Inserts key/value pairs from a sequence, 
+    # raises a ValueError if ValueError if not key/value pair
     def __insert_from_sequence(self, sequence):
         for i, pair in enumerate(sequence):
             length = len(pair)
@@ -331,85 +384,84 @@ class Dictionary:
     # the entry table (__entries) are deletet before inserting them to the new table. 
     # Defining generator object with yield wouldn't work since the entries 
     # would already be deleted when generating the entries.
-    def __get_entries(self):
+    def _get_entries(self):
         return (entry for entry in self.__entries if entry and type(entry) is not _Dummy)
-
+    
+    # A general-purpose method that returns an index where 
+    # either key is found or can be inserted
     def __get_index(self, key):
         mask = self.__size-1
         key_hash = c_size_t(hash(key))
         index = key_hash.value & mask
-        
+        freeslot = None
+
         if self.__valid_index(index, key):
             return index
+        elif type(self.__entries[index]) is _Dummy:
+                freeslot = index
 
+        # A collision occured. Tries the other bits of the hash
         i = index
         perturb = key_hash
 
         while True:
             i = (i << 2) + i + perturb.value + 1
             index = i & mask
-            if self.__valid_index(index, key):
+            
+            if self.__entries[index] is None:
+                return index if freeslot is None else freeslot
+            elif self.__valid_index(index, key):
                 return index
+            elif type(self.__entries[index]) is _Dummy and freeslot is None:
+                freeslot = index
+            
             perturb.value >>= 5
-
+    
+    # Return True if index in entry table is empty or the entry has the same 
+    # hash and key as key and its hash value.
     def __valid_index(self, index, key):
         entry = self.__entries[index]
         if entry is None:
             return True
-        elif type(entry) is _Dummy:
-            return False
-        
-        entry_hash, entry_key, _ = entry
-        return entry_hash == hash(key) and entry_key == key
+        elif type(entry) is not _Dummy:
+            entry_hash, entry_key, _ = entry
+            return entry_hash == hash(key) and entry_key == key
 
-    def __resize(self, size):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        
+    # Resize it if its more than 2/3 full, else just delete dummy values 
+    # from the table and insert the entris into the fresh table
+    def __resize(self):
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
         if len(self) >= (len(self.__entries) * (2.0/3.0)):
-            _dict_local_vars = 3
-            if size < 50000:
-                    self.__size *= 4
-                    prev = self.__prev_size/4
-                    self.__prev_size = prev if prev > self.__BASE_SIZE else self.__BASE_SIZE
-                    self.__n += 2
+            if self.__true_len < 50000:
+                self.__size *= 4
+                prev = self.__prev_size/4
+                self.__prev_size = prev if prev > self.__BASE_SIZE else self.__BASE_SIZE
             else:
-                    self.__size *= 2
-                    self.__prev_size /= 2
-                    self.__n += 1
-        else:
-            _dict_local_vars = 1
+                self.__size *= 2
+                self.__prev_size /= 2
         
+        self.__len = 0
+        self.__true_len = 0
         self.__add_entries()
-        
+    
+    # The opposite as resize, this method shrinks the entry table.
+    # This happens when there are dummy values stored in the entry table
+    # and the number of items could fit in a smaller entry table       
     def __shrink(self):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        shrink = True
-        if len(self) < 50000 and self.__size > self.__BASE_SIZE:
-            _dict_local_vars = 2
-            self.__size = self.__size/4
-            self.__n -= 2
-        elif len(self) >= 50000:
-            _dict_local_vars = 2
-            size = self.__size/2
-            self.__n -= 1
-        else:
-            shrink = False
+        self.__size /= 4 if len(self) < 50000 else 2
+        #self.__prev_size
+        self.__len = 0
+        self.__true_len = 0
+        self.__add_entries()
 
-        if shrink:
-            self.__add_entries()
-
+    # Helper function used by resize and shink to reset the entry 
+    # table and insert all items into the new entry table
     def __add_entries(self):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        _dict_local_vars = 1
-        entries = self.__get_entries()
+        entries = self._get_entries()
         self.__entries = [None] * self.__size
         
         for _, key, value in entries:
-            self[key] = value
+            self.__setitem__(key, value, shrink=False)
 
     
