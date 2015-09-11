@@ -56,7 +56,7 @@ class __sequence_iterator(object):
         address = hex(id(self))
         return '<{} object at {}>'.format(cls, address)
     
-    # Prevents a user to add more attributes 
+    # prevents a user to add more attributes 
     # or reasign instance attributes.
     def __setattr__(self, name, value):
         global _iter_counter, _iter_local_vars
@@ -83,7 +83,7 @@ class _dictionary_itemiterator(__sequence_iterator):
 
 
 class __dictionary_view(object):
-    """Provide a dynamic view on the dictionary's entries, which means that 
+    """provide a dynamic view on the dictionary's entries, which means that 
        when the dictionary changes, the view reflects this canges."""
     
     __metaclass__ = TypeReturn
@@ -214,7 +214,7 @@ class Dictionary(object):
     
     def __len__(self):
         """Return the number of items in the dictionary."""
-        return self.__length
+        return self.__len
     
 
     def __contains__(self, key):
@@ -222,16 +222,17 @@ class Dictionary(object):
         index = self.__get_index(key)
         return self.__entries[index] is not None
          
-    # The default argument 'shrink' is used internally to prevent shrinking
-    # when inserting entries to the entry table after resizing
+    # The default argument 'shrink' is used internally to prevent recursive 
+    # shrinking when inserting entries into the entry table after 
+    # resizing/shrinking the entry table
     def __setitem__(self, key, value, shrink=True):
-        """Set d[key] to value."""
+        """Set dictionary[key] to value."""
         self.lock.acquire()
         index = self.__get_index(key)
         entry = self.__entries[index]
 
         if entry is None or type(entry) is _Dummy:
-            self.__length += 1
+            self.__len += 1
             self.__true_len += 1
         
         self.__entries[index] = (hash(key), key, value) 
@@ -268,7 +269,7 @@ class Dictionary(object):
         index = index if index is not None else self.__get_index(key)
         
         if self.__entries[index]:
-            self.__length -= 1
+            self.__len -= 1
             self.__entries[index] = _Dummy()
         else:
             self.lock.release()
@@ -282,7 +283,8 @@ class Dictionary(object):
         return self[key]
     
     # checks if all instance variables have been initialized,
-    # inserts them into the instance dictionry if not, 
+    # inserts them into the instance dictionry if not, or if
+    # changing the value of an instance variable
     # else call __setitem__
     # dictionary.key = value, same as dictonary[key] = value
     def __setattr__(self, name, value):
@@ -305,7 +307,7 @@ class Dictionary(object):
            This it a shortcut for iterkeys()."""
         return self.iterkeys()
     
-    # Not like repr should work, but returns a string so it looks like 
+    # Not a proper repr, but returns a string so it looks like 
     # pythons built-in dictionary
     def __repr__(self):
         items = ''
@@ -337,7 +339,7 @@ class Dictionary(object):
         _dict_counter = 0
         _dict_local_vars = 6
         self.lock = RLock()
-        self.__length = 0
+        self.__len = 0
         self.__true_len = 0
         self.__size = self.__BASE_SIZE
         self.__prev_size = self.__size
@@ -366,6 +368,7 @@ class Dictionary(object):
            dictionary, a KeyError is raised."""
         index = self.__get_index(key)
         entry = self.__entries[index]
+        
         if entry and type(entry) is not _Dummy:
             _,_, value = item
             self.__delitem__(key, index=index)
@@ -471,8 +474,7 @@ class Dictionary(object):
         return (entry for entry in self.__entries if entry and type(entry) is not _Dummy)
     
     # A general-purpose method that returns an index where 
-    # either key is found or can be inserted. Also re-uses fields that contains
-    # a dummy value.
+    # either key is found or can be inserted.
     def __get_index(self, key):
         mask = self.__size-1
         key_hash = c_size_t(hash(key))
@@ -491,43 +493,41 @@ class Dictionary(object):
         while True:
             i = (i << 2) + i + perturb.value + 1
             index = i & mask
+            
             if self.__entries[index] is None:
                 return index if freeslot is None else freeslot
             elif self.__valid_index(index, key):
                 return index
             elif type(self.__entries[index]) is _Dummy and freeslot is None:
                     freeslot = index
+            
             perturb.value >>= 5
-
-    # A general-purpose method that returns True if index
-    # in entry table is empty or the entry has the same hash and key
-    # as key and its hash value.
-    # Return False if index in entry table is occupied by a dummy value
+    
+    # Return True if index in entry table is empty or the entry has the same 
+    # hash and key as key and its hash value.
     def __valid_index(self, index, key):
         entry = self.__entries[index]
         if entry is None:
             return True
-        elif type(entry) is _Dummy:
-            return False
-        
-        entry_hash, entry_key, _ = entry
-        return entry_hash == hash(key) and entry_key == key
-
-    # Resets the entry table, resize it if its more than 2/3 full, else just
-    # delete dummy values from the table and insert the entris into the fresh
-    # table
+        elif type(entry) is not _Dummy:
+            entry_hash, entry_key, _ = entry
+            return entry_hash == hash(key) and entry_key == key
+    
+    # Resize it if its more than 2/3 full, else just delete dummy values 
+    # from the table and insert the entris into the fresh table
     def __resize(self):
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
         if len(self) >= (len(self.__entries) * (2.0/3.0)):
             if self.__true_len < 50000:
-                    self.__size *= 4
-                    prev = self.__prev_size/4
-                    self.__prev_size = prev if prev > self.__BASE_SIZE else self.__BASE_SIZE
+                self.__size *= 4
+                prev = self.__prev_size/4
+                self.__prev_size = prev if prev > self.__BASE_SIZE else self.__BASE_SIZE
             else:
-                    self.__size *= 2
-                    self.__prev_size /= 2
-        self.__length = 0
+                self.__size *= 2
+                self.__prev_size /= 2
+        
+        self.__len = 0
         self.__true_len = 0
         self.__add_entries()
         
@@ -537,11 +537,11 @@ class Dictionary(object):
     def __shrink(self):
         self.__size /= 4 if len(self) < 50000 else 2
         #self.__prev_size
-        self.__length = 0
+        self.__len = 0
         self.__true_len = 0
         self.__add_entries()
     
-    # Helper function used by resize and shink  to resets the entry 
+    # Helper function used by resize and shink to reset the entry 
     # table and insert all items into the new entry table
     def __add_entries(self):
         entries = self.__get_entries()
@@ -549,5 +549,4 @@ class Dictionary(object):
 
         for _, key, value in entries:
             self.__setitem__(key, value, shrink=False)
-            #self[key] = value
     
