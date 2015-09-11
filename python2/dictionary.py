@@ -213,7 +213,6 @@ class Dictionary(object):
         """Return the number of items in the dictionary."""
         return self.__len
     
-
     def __contains__(self, key):
         """Return true if dictionary has key else false."""
         index = self.__get_index(key)
@@ -365,16 +364,20 @@ class Dictionary(object):
         """If the key is in the dictionary, remove it and return its value, 
            else return default. If default is not given, and key is not in the
            dictionary, a KeyError is raised."""
+        self.lock.acquire()
         index = self.__get_index(key)
         entry = self.__entries[index]
         
         if entry and type(entry) is not _Dummy:
             _,_, value = item
             self.__delitem__(key, index=index)
+            self.lock.release()
             return value
         elif default:
+            self.lock.release()
             return default
         else:
+            self.lock.release()
             raise KeyError(key)
 
     def popitem(self):
