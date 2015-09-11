@@ -29,15 +29,13 @@ class DictionaryTest(unittest.TestCase):
         else:
             self.assertEqual(self.dictionary, self.reference, msg='The two dictionaries are not equal')
             
-            # only works if __delitem__ doesn't shrink the entry
-            # table
-            #while True:
-            #    try:
-            #        a = self.dictionary.popitem()
-            #        b = self.reference.popitem()
-            #        self.assertEqual(a,b)
-            #    except KeyError:
-            #        break
+            while True:
+                try:
+                    a = self.dictionary.popitem()
+                    b = self.reference.popitem()
+                    self.assertEqual(a,b)
+                except KeyError:
+                    break
     
     def insert_random(self, n, low, high, thread_id=None):
         if thread_id is not None:
