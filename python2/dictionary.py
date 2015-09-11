@@ -249,7 +249,7 @@ class Dictionary(object):
         index = self.__get_index(key)
         entry = self.__entries[index]
         
-        if entry and type(entry) is not _Dummy:
+        if self.__valid_entry(entry):
             del self[key]
             _, _, value = entry
             return value
@@ -265,7 +265,7 @@ class Dictionary(object):
         index = index if index is not None else self.__get_index(key)
         entry = self.__entries[index]
         
-        if entry and type(entry) is not _Dummy:
+        if self.__valid_entry(entry):
             self.__len -= 1
             self.__entries[index] = _Dummy()
             self.lock.release()
@@ -366,7 +366,7 @@ class Dictionary(object):
         index = self.__get_index(key)
         entry = self.__entries[index]
         
-        if entry and type(entry) is not _Dummy:
+        if self.__valid_entry(entry):
             _,_, value = entry
             self.__delitem__(key, index=index)
             self.lock.release()
@@ -471,7 +471,7 @@ class Dictionary(object):
     # table. Defining generator object with yield wouldn't work since the 
     # entries would already be deleted when generating the entries.
     def __get_entries(self):
-        return (entry for entry in self.__entries if entry and type(entry) is not _Dummy)
+        return (entry for entry in self.__entries if self.__valid_entry(entry))
     
     # A general-purpose method that returns an index where 
     # either key is found or can be inserted.
@@ -512,6 +512,12 @@ class Dictionary(object):
         elif type(entry) is not _Dummy:
             entry_hash, entry_key, _ = entry
             return entry_hash == hash(key) and entry_key == key
+    
+    # Return True if there is an entry and the entry
+    # isn't a dummy value, else return False
+    @staticmethod
+    def __valid_entry(entry):
+        return entry is not None and type(entry) is not _Dummy   
     
     # Resize it if its more than 2/3 full, else just delete dummy values 
     # from the table and insert the entris into the fresh table
