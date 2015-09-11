@@ -1,6 +1,7 @@
 # This is a reimplementation of pythons built-in dictionary
 # inspired by Brandon Craig Rhodes talk from PyCon 2010: The Mighty Dictionary
 
+
 from threading import RLock
 from ctypes import c_size_t
 from itertools import izip
@@ -256,13 +257,12 @@ class Dictionary(object):
            Raises a KeyError if key is not in the map"""
         self.lock.acquire()
         index = index if index is not None else self.__get_index(key)
+        
         if self.__entries[index]:
             self.__entries[index] = _Dummy()
         else:
             self.lock.release()
             raise KeyError(key)
-
-
         
         self.lock.release()
 
