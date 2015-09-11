@@ -6,6 +6,7 @@ from threading import RLock
 from ctypes import c_size_t
 from itertools import izip
 
+
 # Meta class to control what class name type returns
 class TypeReturn(type):
     def __repr__(cls):
@@ -30,11 +31,13 @@ class __sequence_iterator(object):
     
     __metaclass__ = TypeReturn
     
-    def __init__(self, sequence_gen):
+    def __init__(self, sequence_gen, dictionary):
         global _iter_counter, _iter_local_vars
         _iter_counter = 0
-        _iter_local_vars = 2
+        _iter_local_vars = 4
         self.__sequence = sequence_gen
+        self.__dictionary = dictionary
+        self.__size = len(dictionary)
         # Hide the underscore from class name whenever printing it
         name = self.__class__.__name__
         self.__class__.__name__ = name[1:] if name.startswith('_') else name
@@ -43,7 +46,10 @@ class __sequence_iterator(object):
         return self
 
     def next(self):
-        return(next(self.__sequence))
+        if len(self.__dictionary) != self.__size:
+            raise RuntimeError('dictionary changed size during iteration')
+        else:
+            return(next(self.__sequence))
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -208,7 +214,7 @@ class Dictionary(object):
     
     def __len__(self):
         """Return the number of items in the dictionary."""
-        return len([entry for entry in self.__get_entries()])
+        return self.__len
     
     # also count Dummy entries
     def __true_len(self):
@@ -219,18 +225,24 @@ class Dictionary(object):
         index = self.__get_index(key)
         return self.__entries[index] is not None
          
-    # The default argument 'index' is used internally when the index
-    # already has been calculated
-    def __setitem__(self, key, value, index=None, shrink=True):
+    # The default argument 'shrink' is used internally to prevent shrinking
+    # when inserting entries to the entry table after resizing
+    def __setitem__(self, key, value, shrink=True):
         """Set d[key] to value."""
         self.lock.acquire()
-        index = index if index is not None else self.__get_index(key)
-        self.__entries[index] = (hash(key), key, value) 
+        index = self.__get_index(key)
+        entry = self.__entries[index]
 
+        if entry is None or type(entry) is _Dummy:
+            _dict_local_vars = 1
+            self.__len += 1
+        
+        self.__entries[index] = (hash(key), key, value) 
         size = self.__true_len()
+        
         if size >= (len(self.__entries) * (2.0/3.0)):
-            self.__resize(size)
-        if shrink:
+            self.__resize(size)    
+        elif shrink:
             if len(self) < self.__prev_size * (2.0/3.0) and self.__size > self.__BASE_SIZE:
                 self.__shrink()
         
@@ -242,7 +254,7 @@ class Dictionary(object):
         self.lock.acquire()
         index = self.__get_index(key)
         entry = self.__entries[index]
-        if entry:
+        if entry and type(entry) is not _Dummy:
             _, _, value = entry
             self.lock.release()
             return value
@@ -259,6 +271,7 @@ class Dictionary(object):
         index = index if index is not None else self.__get_index(key)
         
         if self.__entries[index]:
+            self.__len -= 1
             self.__entries[index] = _Dummy()
         else:
             self.lock.release()
@@ -278,12 +291,13 @@ class Dictionary(object):
     def __setattr__(self, name, value):
         global _dict_counter, _dict_local_vars
         
-        if _dict_counter < _dict_local_vars:
+        if name in self.__dict__:
             self.__dict__[name] = value
-        elif _dict_counter >= _dict_local_vars:
+        elif _dict_counter < _dict_local_vars:
+            self.__dict__[name] = value
+            _dict_counter += 1
+        else:
             self[name] = value
-    
-        _dict_counter += 1
     
     # del dictionary.key, same as del dictionary[key]
     def __delattr__(self, key):
@@ -324,8 +338,9 @@ class Dictionary(object):
         """Remove all items from the dictionary"""
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
-        _dict_local_vars = 4
+        _dict_local_vars = 5
         self.lock = RLock()
+        self.__len = 0
         self.__size = self.__BASE_SIZE
         self.__prev_size = self.__size
         self.__entries = [None] * self.__size
@@ -352,8 +367,8 @@ class Dictionary(object):
            else return default. If default is not given, and key is not in the
            dictionary, a KeyError is raised."""
         index = self.__get_index(key)
-        item = self.__entries[index]
-        if item:
+        entry = self.__entries[index]
+        if entry and type(entry) is not _Dummy:
             _,_, value = item
             self.__delitem__(key, index=index)
             return value
@@ -409,17 +424,17 @@ class Dictionary(object):
     def iterkeys(self):
         """Return an iterator over the dictionary's keys"""
         keys = (key for _, key, _ in self.__get_entries())
-        return _dictionary_keyiterator(keys)
+        return _dictionary_keyiterator(keys, self)
 
     def iteritems(self):
         """Return an iterator over the dictionary's (key, value) pairs"""
         items = ((key, value) for _, key, value in self.__get_entries())
-        return _dictionary_itemiterator(items)
+        return _dictionary_itemiterator(items, self)
 
     def itervalues(self):
         """Return an iterator over the dictionary's values"""
         values = (value for _, _, value in self.__get_entries())
-        return _dictionary_valueiterator(values)
+        return _dictionary_valueiterator(values, self)
 
     def viewkeys(self):
         """Return a new view of the dictionary's keys"""
@@ -451,22 +466,26 @@ class Dictionary(object):
     
     # Returing a generator expression is the only thing that works here because 
     # later we will need it in __resize -> __add_entries where all entries from 
-    # the entry table (__entries) are deletet before inserting them to the new 
+    # the entry table (__entries) are deleted before inserting them to the new 
     # table. Defining generator object with yield wouldn't work since the 
     # entries would already be deleted when generating the entries.
     def __get_entries(self):
         return (entry for entry in self.__entries if entry and type(entry) is not _Dummy)
     
     # A general-purpose method that returns an index where 
-    # either key is foundor can be inserted.
+    # either key is found or can be inserted. Also re-uses fields that contains
+    # a dummy value.
     def __get_index(self, key):
         mask = self.__size-1
         key_hash = c_size_t(hash(key))
         index = key_hash.value & mask
+        freeslot = None
         
         if self.__valid_index(index, key):
             return index
-        
+        elif type(self.__entries[index]) is _Dummy:
+            freeslot = index
+            
         # A collision occured. Tries the other bits of the hash
         i = index
         perturb = key_hash
@@ -474,8 +493,12 @@ class Dictionary(object):
         while True:
             i = (i << 2) + i + perturb.value + 1
             index = i & mask
-            if self.__valid_index(index, key):
+            if self.__entries[index] is None:
+                return index if freeslot is None else freeslot
+            elif self.__valid_index(index, key):
                 return index
+            elif type(self.__entries[index]) is _Dummy and freeslot is None:
+                    freeslot = index
             perturb.value >>= 5
 
     # A general-purpose method that returns True if index
@@ -496,14 +519,9 @@ class Dictionary(object):
     # delete dummy values from the table and insert the entris into the fresh
     # table
     def __resize(self, size):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
         if len(self) >= (len(self.__entries) * (2.0/3.0)):
-            _dict_local_vars = 2
-            
             if size < 50000:
                     self.__size *= 4
                     prev = self.__prev_size/4
@@ -511,25 +529,19 @@ class Dictionary(object):
             else:
                     self.__size *= 2
                     self.__prev_size /= 2
-        
+        self.__len = 0
         self.__add_entries()
         
     # The opposite as resize, this method shrinks the entry table.
     # This happens when there are dummy values stored in the entry table
     # and the number of items could fit in a smaller entry table
     def __shrink(self):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        _dict_local_vars = 2   
         self.__size /= 4 if len(self) < 50000 else 2 
         self.__add_entries()
     
     # Helper function used by resize and shink  to resets the entry 
     # table and insert all items into the new entry table
     def __add_entries(self):
-        global _dict_counter, _dict_local_vars
-        _dict_counter = 0
-        _dict_local_vars = 1
         entries = self.__get_entries()
         self.__entries = [None] * self.__size
 
