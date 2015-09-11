@@ -214,11 +214,8 @@ class Dictionary(object):
     
     def __len__(self):
         """Return the number of items in the dictionary."""
-        return self.__len
+        return self.__length
     
-    # also count Dummy entries
-    def __true_len(self):
-        return len([entry for entry in self.__entries if entry])
 
     def __contains__(self, key):
         """Return true if dictionary has key else false."""
@@ -234,14 +231,13 @@ class Dictionary(object):
         entry = self.__entries[index]
 
         if entry is None or type(entry) is _Dummy:
-            _dict_local_vars = 1
-            self.__len += 1
+            self.__length += 1
+            self.__true_len += 1
         
         self.__entries[index] = (hash(key), key, value) 
-        size = self.__true_len()
         
-        if size >= (len(self.__entries) * (2.0/3.0)):
-            self.__resize(size)    
+        if self.__true_len >= (len(self.__entries) * (2.0/3.0)):
+            self.__resize()    
         elif shrink:
             if len(self) < self.__prev_size * (2.0/3.0) and self.__size > self.__BASE_SIZE:
                 self.__shrink()
@@ -254,6 +250,7 @@ class Dictionary(object):
         self.lock.acquire()
         index = self.__get_index(key)
         entry = self.__entries[index]
+        
         if entry and type(entry) is not _Dummy:
             _, _, value = entry
             self.lock.release()
@@ -271,7 +268,7 @@ class Dictionary(object):
         index = index if index is not None else self.__get_index(key)
         
         if self.__entries[index]:
-            self.__len -= 1
+            self.__length -= 1
             self.__entries[index] = _Dummy()
         else:
             self.lock.release()
@@ -338,9 +335,10 @@ class Dictionary(object):
         """Remove all items from the dictionary"""
         global _dict_counter, _dict_local_vars
         _dict_counter = 0
-        _dict_local_vars = 5
+        _dict_local_vars = 6
         self.lock = RLock()
-        self.__len = 0
+        self.__length = 0
+        self.__true_len = 0
         self.__size = self.__BASE_SIZE
         self.__prev_size = self.__size
         self.__entries = [None] * self.__size
@@ -518,25 +516,29 @@ class Dictionary(object):
     # Resets the entry table, resize it if its more than 2/3 full, else just
     # delete dummy values from the table and insert the entris into the fresh
     # table
-    def __resize(self, size):
+    def __resize(self):
         # Checks if dictionary really need to resize
         # or just have to get rid of Dummy entries
         if len(self) >= (len(self.__entries) * (2.0/3.0)):
-            if size < 50000:
+            if self.__true_len < 50000:
                     self.__size *= 4
                     prev = self.__prev_size/4
                     self.__prev_size = prev if prev > self.__BASE_SIZE else self.__BASE_SIZE
             else:
                     self.__size *= 2
                     self.__prev_size /= 2
-        self.__len = 0
+        self.__length = 0
+        self.__true_len = 0
         self.__add_entries()
         
     # The opposite as resize, this method shrinks the entry table.
     # This happens when there are dummy values stored in the entry table
     # and the number of items could fit in a smaller entry table
     def __shrink(self):
-        self.__size /= 4 if len(self) < 50000 else 2 
+        self.__size /= 4 if len(self) < 50000 else 2
+        #self.__prev_size
+        self.__length = 0
+        self.__true_len = 0
         self.__add_entries()
     
     # Helper function used by resize and shink  to resets the entry 
