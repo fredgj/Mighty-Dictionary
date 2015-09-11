@@ -25,7 +25,7 @@ class _Dummy(object):
         return 'Dummy'
 
 
-class __sequence_iterator(object):
+class __dictionary_iterator(object):
     """Used by iteritems, iterkeys and itervalues to create an
        iterator over dictionary items, keys or values"""
     
@@ -69,15 +69,15 @@ class __sequence_iterator(object):
             raise AttributeError("{} object has not attribute {}".format(cls, name))
 
 
-class _dictionary_keyiterator(__sequence_iterator):
+class _dictionary_keyiterator(__dictionary_iterator):
     pass
 
 
-class _dictionary_valueiterator(__sequence_iterator):
+class _dictionary_valueiterator(__dictionary_iterator):
     pass
 
 
-class _dictionary_itemiterator(__sequence_iterator):
+class _dictionary_itemiterator(__dictionary_iterator):
     pass
 
 
