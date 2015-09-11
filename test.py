@@ -2,6 +2,7 @@ import random
 import string
 import sys
 import unittest
+from functools import wraps
 from threading import Thread, RLock
 
 
@@ -13,6 +14,26 @@ if py_version == 3:
 else:
     from python2.dictionary import Dictionary
     range = xrange
+
+
+# Decorator for retrieving return values from threads
+def threaded(func):
+    def wrapped_func(ret_val, *args, **kwargs):
+        """Calls the function and appends the return value to ret_val"""
+        val = func(*args, **kwargs)
+        ret_val.append(val)
+    
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        """Creates a new thread with wrapped_func, adds an empty list to the
+           thread for return value and fires it up before returning it"""
+        ret_val = []
+        t = Thread(target=wrapped_func, args=(ret_val,)+args, kwargs=kwargs)
+        t.ret_val = ret_val
+        t.start()
+        return t
+
+    return wrapper
 
 
 class DictionaryTest(unittest.TestCase):
@@ -27,7 +48,8 @@ class DictionaryTest(unittest.TestCase):
                 self.assertIn(key, self.reference)
                 self.assertEqual(self.dictionary[key], self.reference[key])
         else:
-            self.assertEqual(self.dictionary, self.reference, msg='The two dictionaries are not equal')
+            self.assertEqual(self.dictionary, self.reference, 
+                msg='The two dictionaries are not equal')
  
     def insert_random(self, n, low, high, thread_id=None):
         if thread_id is not None:
@@ -97,6 +119,72 @@ class DictionaryTest(unittest.TestCase):
             t.join()
 
         self.assert_tests_passed()
+
+    @threaded
+    def pop(self, n, default):
+        for i in range(n):
+            value = self.dictionary.pop(i, default)
+            if value != i and value != default:
+                return False, value, i
+        return True, None, None
+
+    @threaded
+    def popitem(self):
+        while True:
+            try:
+                self.dictionary.popitem()
+            except KeyError as e:
+                return e
+
+    @threaded
+    def delete(self, n):
+        """Delete is just here to compete 
+           against either pop or popitem."""
+        for i in range(n):
+            try:
+                del[i]
+            except KeyError:
+                continue
+    
+    def fill_dict_with_ints(self, n):
+        for i in range(n):
+            self.dictionary[i] = i
+
+    def test_pop(self):
+        print('\nRunning pop test\n')
+        self.dictionary = Dictionary()
+        n = 10000
+        default = 2
+        self.fill_dict_with_ints(n)
+        
+        t1 = self.pop(n, default)
+        t2 = self.delete(n)
+
+        t1.join()
+        t2.join()
+        
+        ret_val, value, expected = t1.ret_val[0]
+        self.assertTrue(ret_val, 
+            msg='pop returned {}, expected to return {} or {}'.format(value,
+                                                                      expected,
+                                                                      default,))
+
+    def test_popitem(self):
+        print('\nRunning popitem test\n')
+        self.dictionary = Dictionary()
+        n = 10000
+        self.fill_dict_with_ints(n)
+
+        t1 = self.popitem()
+        t2 = self.delete(n)
+
+        t1.join()
+        t2.join()
+        msg = 'popitem(): dictionary is empty'
+        excpt_msg = str(t1.ret_val[0])[1:-1]
+        self.assertEqual(excpt_msg, msg, 
+            msg="Popitem returned '{}', should return '{}'".format(excpt_msg, 
+                                                                   msg)) 
 
 
 if __name__ == '__main__':
