@@ -177,9 +177,11 @@ class Dictionary:
         index = self.__get_index(key)
         entry = self.__entries[index]
         
-        if entry is None or type(entry) is _Dummy:
+        if entry is None: 
             self.__len += 1
             self.__true_len += 1
+        elif type(entry) is _Dummy:
+            self.__len += 1
 
         self.__entries[index] = (hash(key), key, value)
         
