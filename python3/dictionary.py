@@ -217,7 +217,7 @@ class Dictionary:
         index = index if index is not None else self.__get_index(key)
         
         if self.__entries[index]:
-            self.__length -= 1
+            self.__len -= 1
             self.__entries[index] = _Dummy()
         else:
             self.lock.release()
@@ -325,11 +325,8 @@ class Dictionary:
            dictionary"""
         try:
             key, value = next(iter(self.items()))
-            index = self.__get_index(key)
-            entry = self.__entries[index]
-            if entry is not None:
-                self.__delitem__(key, index=index)
-                return key,value
+            del self[key]
+            return key, value
         except StopIteration:
             raise KeyError('popitem(): dictionary is empty')   
     

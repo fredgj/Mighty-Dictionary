@@ -382,11 +382,8 @@ class Dictionary(object):
            dictionary"""
         try:
             key, value = next(self.iteritems())
-            index = self.__get_index(key)
-            entry = self.__entries[index]
-            if entry is not None:
-                self.__delitem__(key, index=index)
-                return key,value
+            del self[key]
+            return key, value
         except StopIteration:
             raise KeyError('popitem(): dictionary is empty')   
     
