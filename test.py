@@ -41,7 +41,7 @@ class DictionaryTest(unittest.TestCase):
         super(DictionaryTest, self).__init__(*args, **kwargs)
         self.lock = RLock()
 
-    def assert_tests_passed(self):
+    def assert_insertion_tests_passed(self):
         self.assertEqual(len(self.dictionary), len(self.reference))
         if py_version == 3 or sys.executable.endswith('pypy'):
             for key in self.dictionary:
@@ -68,24 +68,24 @@ class DictionaryTest(unittest.TestCase):
         if thread_id is not None:
             print('Thread-{} done'.format(thread_id))
 
-    def test_single_thread_test_many_unique_keys_(self):
-        print('\nRunning single threaded test with many unique keys\n')
+    def test_single_thread_insertion_test_many_unique_keys_(self):
+        print('\nRunning single threaded insertion test with many unique keys\n')
         self.dictionary = Dictionary()
         self.reference = dict()
         self.insert_random(10000, 0, 1000)
         
-        self.assert_tests_passed()
+        self.assert_insertion_tests_passed()
         
-    def test_single_thread_test_few_unique_keys(self):
-        print('\nRunning single threaded test with few unique keys\n')
+    def test_single_thread_insertion_test_few_unique_keys(self):
+        print('\nRunning single threaded insertion test with few unique keys\n')
         self.dictionary = Dictionary()
         self.reference = dict()
         self.insert_random(10000, 0, 1)
        
-        self.assert_tests_passed()
+        self.assert_insertion_tests_passed()
         
-    def test_multi_thread_test_many_unique_keys(self):
-        print('\nRunning multi threaded test with many unique keys\n')
+    def test_multi_thread_insertion_test_many_unique_keys(self):
+        print('\nRunning multi threaded insertion test with many unique keys\n')
         self.dictionary = Dictionary()
         self.reference = dict()
 
@@ -100,10 +100,10 @@ class DictionaryTest(unittest.TestCase):
         for t in threads:
             t.join()
         
-        self.assert_tests_passed()
+        self.assert_insertion_tests_passed()
 
-    def test_multi_thread_test_few_unique_keys(self):
-        print('\nRunning multi threaded test with few unique keys\n')
+    def test_multi_thread_insertion_test_few_unique_keys(self):
+        print('\nRunning multi threaded insertion test with few unique keys\n')
         self.dictionary = Dictionary()
         self.reference = dict()
 
@@ -118,7 +118,7 @@ class DictionaryTest(unittest.TestCase):
         for t in threads:
             t.join()
 
-        self.assert_tests_passed()
+        self.assert_insertion_tests_passed()
 
     @threaded
     def pop(self, n, default):
@@ -142,7 +142,7 @@ class DictionaryTest(unittest.TestCase):
            against either pop or popitem."""
         for i in range(n):
             try:
-                del[i]
+                del self.dictionary[i]
             except KeyError:
                 continue
     
@@ -164,6 +164,7 @@ class DictionaryTest(unittest.TestCase):
         t2.join()
         
         ret_val, value, expected = t1.ret_val[0]
+        
         self.assertTrue(ret_val, 
             msg='pop returned {}, expected to return {} or {}'.format(value,
                                                                       expected,
@@ -180,8 +181,10 @@ class DictionaryTest(unittest.TestCase):
 
         t1.join()
         t2.join()
+        
         msg = 'popitem(): dictionary is empty'
         excpt_msg = str(t1.ret_val[0])[1:-1]
+        
         self.assertEqual(excpt_msg, msg, 
             msg="Popitem returned '{}', should return '{}'".format(excpt_msg, 
                                                                    msg)) 
