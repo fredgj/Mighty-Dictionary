@@ -16,7 +16,8 @@ else:
     range = xrange
 
 
-# Decorator for retrieving return values from threads
+# Decorator for creating a thread, starting the thread, and being able to 
+# retrieve the return value from the thread after it has terminated
 def threaded(func):
     def wrapped_func(ret_val, *args, **kwargs):
         """Calls the function and appends the return value to ret_val"""
@@ -28,10 +29,10 @@ def threaded(func):
         """Creates a new thread with wrapped_func, adds an empty list to the
            thread for return value and fires it up before returning it"""
         ret_val = []
-        t = Thread(target=wrapped_func, args=(ret_val,)+args, kwargs=kwargs)
-        t.ret_val = ret_val
-        t.start()
-        return t
+        thread = Thread(target=wrapped_func, args=(ret_val,)+args, kwargs=kwargs)
+        thread.ret_val = ret_val
+        thread.start()
+        return thread
 
     return wrapper
 
@@ -139,7 +140,8 @@ class DictionaryTest(unittest.TestCase):
     @threaded
     def delete(self, n):
         """Delete is just here to compete 
-           against either pop or popitem."""
+           against either pop or popitem in
+           removing items from the dictionary."""
         for i in range(n):
             try:
                 del self.dictionary[i]
