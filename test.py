@@ -18,6 +18,7 @@ else:
 
 # Decorator for creating a thread, starting the thread, and being able to 
 # retrieve the return value from the thread after it has terminated
+# Return a running thread
 def threaded(func):
     def wrapped_func(ret_val, *args, **kwargs):
         """Calls the function and appends the return value to ret_val"""
@@ -127,7 +128,7 @@ class DictionaryTest(unittest.TestCase):
             value = self.dictionary.pop(i, default)
             if value != i and value != default:
                 return False, value, i
-        return True, None, None
+        return True, value, i
 
     @threaded
     def popitem(self):
@@ -135,7 +136,7 @@ class DictionaryTest(unittest.TestCase):
             try:
                 self.dictionary.popitem()
             except KeyError as e:
-                return e
+                return str(e)
 
     @threaded
     def delete(self, n):
@@ -168,7 +169,7 @@ class DictionaryTest(unittest.TestCase):
         ret_val, value, expected = t1.ret_val[0]
         
         self.assertTrue(ret_val, 
-            msg='pop returned {}, expected to return {} or {}'.format(value,
+            msg="pop returned {}, expected to return {} or {}".format(value,
                                                                       expected,
                                                                       default,))
 
@@ -184,8 +185,8 @@ class DictionaryTest(unittest.TestCase):
         t1.join()
         t2.join()
         
-        msg = 'popitem(): dictionary is empty'
-        excpt_msg = str(t1.ret_val[0])[1:-1]
+        msg = "'popitem(): dictionary is empty'"
+        excpt_msg = t1.ret_val[0]
         
         self.assertEqual(excpt_msg, msg, 
             msg="Popitem returned '{}', should return '{}'".format(excpt_msg, 
