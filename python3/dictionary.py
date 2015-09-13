@@ -393,42 +393,43 @@ class Dictionary:
     # either key is found or can be inserted
     def __get_index(self, key):
         mask = self.__size-1
-        key_hash = c_size_t(hash(key))
-        index = key_hash.value & mask
+        key_hash = hash(key)
+        key_hash_size_t = c_size_t(key_hash)
+        index = key_hash_size_t.value & mask
         freeslot = None
-
-        if self.__valid_index(index, key):
+        
+        entry = self.__entries[index]
+        if entry is None:
             return index
-        elif type(self.__entries[index]) is _Dummy:
-                freeslot = index
+        elif self.__strict_compare(entry, key_hash, key):
+            return index
+        elif type(entry) is _Dummy:
+            freeslot = index
 
         # A collision occured. Tries the other bits of the hash
         i = index
-        perturb = key_hash
+        perturb = key_hash_size_t
 
         while True:
             i = (i << 2) + i + perturb.value + 1
             index = i & mask
             
-            if self.__entries[index] is None:
+            entry = self.__entries[index]
+            if entry is None:
                 return index if freeslot is None else freeslot
-            elif self.__valid_index(index, key):
+            elif self.__strict_compare(entry, key_hash, key):
                 return index
-            elif type(self.__entries[index]) is _Dummy and freeslot is None:
-                freeslot = index
+            elif type(entry) is _Dummy and freeslot is None:
+                    freeslot = index
             
             perturb.value >>= 5
     
-    # Return True if index in entry table is empty or the entry has the same 
-    # hash and key as key and its hash value.
-    def __valid_index(self, index, key):
-        entry = self.__entries[index]
-        if entry is None:
-            return True
-        elif type(entry) is not _Dummy:
+    @staticmethod
+    def __strict_compare(entry, key_hash, key):
+        if type(entry) is not _Dummy:
             entry_hash, entry_key, _ = entry
-            return entry_hash == hash(key) and entry_key == key
-    
+            return entry_hash == key_hash and entry_key == key
+
     # Return True if there is an entry and the entry
     # isn't a dummy value, else return False
     @staticmethod
