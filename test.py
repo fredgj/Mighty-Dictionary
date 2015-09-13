@@ -39,8 +39,7 @@ def threaded(func):
 
 
 class DictionaryTest(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        super(DictionaryTest, self).__init__(*args, **kwargs)
+    def setUp(self):
         self.lock = RLock()
 
     def assert_insertion_tests_passed(self):
