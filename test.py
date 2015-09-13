@@ -18,7 +18,7 @@ else:
 
 # Decorator for creating a thread, starting the thread, and being able to 
 # retrieve the return value from the thread after it has terminated
-# The decorated functions returns a running thread when called
+# Return a function wrapped inside a thread.
 def threaded(func):
     def wrapped_func(ret_val, *args, **kwargs):
         """Calls the function and appends the return value to ret_val"""
@@ -28,7 +28,7 @@ def threaded(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         """Creates a new thread with wrapped_func, adds an empty list to the
-           thread for return value and fires it up before returning it"""
+           thread for return value. Return a running thread"""
         ret_val = []
         thread = Thread(target=wrapped_func, args=(ret_val,)+args, kwargs=kwargs)
         thread.ret_val = ret_val
@@ -122,7 +122,7 @@ class DictionaryTest(unittest.TestCase):
         self.assert_insertion_tests_passed()
 
     @threaded
-    def pop(self, n, default):
+    def pop_all(self, n, default):
         for i in range(n):
             value = self.dictionary.pop(i, default)
             if value != i and value != default:
@@ -130,7 +130,7 @@ class DictionaryTest(unittest.TestCase):
         return True, value, i
 
     @threaded
-    def popitem(self):
+    def popitem_all(self):
         while True:
             try:
                 self.dictionary.popitem()
@@ -138,7 +138,7 @@ class DictionaryTest(unittest.TestCase):
                 return str(e)
 
     @threaded
-    def delete(self, n):
+    def delete_all(self, n):
         """Delete is just here to compete 
            against either pop or popitem in
            removing items from the dictionary."""
@@ -159,8 +159,8 @@ class DictionaryTest(unittest.TestCase):
         default = 2
         self.fill_dict_with_ints(n)
         
-        t1 = self.pop(n, default)
-        t2 = self.delete(n)
+        t1 = self.pop_all(n, default)
+        t2 = self.delete_all(n)
 
         t1.join()
         t2.join()
@@ -178,8 +178,8 @@ class DictionaryTest(unittest.TestCase):
         n = 10000
         self.fill_dict_with_ints(n)
 
-        t1 = self.popitem()
-        t2 = self.delete(n)
+        t1 = self.popitem_all()
+        t2 = self.delete_all(n)
 
         t1.join()
         t2.join()
