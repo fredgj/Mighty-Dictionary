@@ -18,7 +18,7 @@ else:
 
 # Decorator for creating a thread, starting the thread, and being able to 
 # retrieve the return value from the thread after it has terminated
-# Return a running thread
+# The decorated functions returns a running thread when called
 def threaded(func):
     def wrapped_func(ret_val, *args, **kwargs):
         """Calls the function and appends the return value to ret_val"""
