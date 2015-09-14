@@ -216,7 +216,7 @@ class Dictionary(object):
     def __contains__(self, key):
         """Return true if dictionary has key else false."""
         index = self.__get_index(key)
-        return self.__entries[index] is not None
+        return self.__valid_entry(self.__entries[index])
          
     # The default argument 'shrink' is used internally to prevent recursive 
     # shrinking when inserting entries into the entry table after 
