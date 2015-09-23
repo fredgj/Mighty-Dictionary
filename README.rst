@@ -43,6 +43,9 @@ Bugs and issues
 There are probably a few bugs in the dictionary since it yet has to be testet
 properly. 
 
+The dictionary should be thread-safe. All the critical zones are protected by
+a reentrant lock, though this has yet to be fully tested.
+
 Some of the code is a bit sketchy (global variables together setattr), and some
 of it might be a bit overkill, but i wanted it to emulate pythons dictionary.
 
