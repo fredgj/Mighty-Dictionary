@@ -5,19 +5,23 @@ This is a reimplementation of pythons built-in dictionary, inspired by Brandon
 Craig Rhodes talk `The Mighty Dictionary 
 <https://www.youtube.com/watch?v=C4Kc8xzcA68>`_ from PyCon 2010.
 
+This dictionary was implemented while exploring the internal stucture of the 
+dictionary and experimenting with pythons features. I have made some minor 
+changes from the python's dictionary implementation, but they work more or less
+the same way.
+
+This dictionary implenentation as a lot slower compared to pythons built-in
+dictionary, but it's mainly because this dictionary is implemented in python
+while pythons dictionary is implemented in C.
+
 There are two versions, a pyton 2 version and a python 3 version.
 The python 2 version have been implemented to work exactly like pythons 2's
 dictionary.
 
-I wouldn't recommend using this dictionary, it's a lot slower than pythons
-built-in dictionary (not that strange). It was implemented while exploring
-the internal stucture of the dictionary and experimenting with pythons features.
-I have made some minor changes from the python's dictionary implementation.
-
 The strategy for calculating a new index in case of a collision has has been taken
 from pythons `dictionary implementation
 <https://hg.python.org/cpython/file/52f68c95e025/Objects/dictobject.c>`_ (line 35 to
-125).
+125 and line 318 to 395).
 
 Differences
 ===========
@@ -41,11 +45,6 @@ properly.
 
 Some of the code is a bit sketchy (global variables together setattr), and some
 of it might be a bit overkill, but i wanted it to emulate pythons dictionary.
-
-Resizing the table starts slowing down when the dictionary grows. This can't be
-solved by threads due to pythons global interpreter lock (GIL) and the
-dictionary's internal lock which would block the threads when inserting.
-One way to solve this might be writing C extensions. 
 
 The python 3 version doesn't seem to insert keys at the same index in the entry
 table as the python 2 version when resizing.
